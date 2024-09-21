@@ -9,6 +9,7 @@ import logging
 from dotenv import load_dotenv
 import requests
 import subprocess
+import json
 import base64
 import jwt
 import time
@@ -42,7 +43,14 @@ def get_changed_file_paths(original_dir, working_dir):
 app = Flask(__name__)
 
 # Set up logging
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("debug.log"),
+        logging.StreamHandler()
+    ]
+)
 logger = logging.getLogger(__name__)
 
 # GitHub App configuration
@@ -261,13 +269,21 @@ def extract_files_list_from_issue(issue_body):
 
 def verify_webhook_signature(payload_body, signature_header):
     """Verify that the payload was sent from GitHub by validating SHA256."""
+    logger.info("Verifying webhook signature")
     if not signature_header:
+        logger.warning("No signature header provided")
         return False
     hash_object = hmac.new(GITHUB_WEBHOOK_SECRET.encode('utf-8'), msg=payload_body, digestmod=hashlib.sha256)
     expected_signature = "sha256=" + hash_object.hexdigest()
-    return hmac.compare_digest(expected_signature, signature_header)
+    result = hmac.compare_digest(expected_signature, signature_header)
+    logger.info(f"Signature verification result: {result}")
+    return result
 
 def do_coding_request(issue_title, issue_body, files_list, root_folder_path):
+    logger.info("Starting coding request")
+    logger.info(f"Issue Title: {issue_title}")
+    logger.info(f"Files List: {files_list}")
+    
     model = Model("claude-3-5-sonnet-20240620")
     full_file_paths = [os.path.join(root_folder_path, file) for file in files_list]
     io = InputOutput(yes=True)
@@ -275,7 +291,9 @@ def do_coding_request(issue_title, issue_body, files_list, root_folder_path):
 
     coder_prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue_title}\n\nIssue Body: {issue_body}"
 
+    logger.info("Running coder with prompt")
     coder.run(coder_prompt)
+    logger.info("Coding request completed")
 
 
 @app.route('/', methods=['GET'])
@@ -287,15 +305,23 @@ def webhook():
     signature = request.headers.get('X-Hub-Signature-256')
     payload = request.data
 
+    logger.info(f"Received webhook with signature: {signature}")
+    logger.info(f"Payload: {payload.decode('utf-8')}")
+
     if not verify_webhook_signature(payload, signature):
+        logger.warning("Webhook signature verification failed")
         return jsonify({"error": "Request signatures didn't match!"}), 403
 
-    logger.info(f"Received webhook payload: {payload.decode('utf-8')}")
+    logger.info("Webhook signature verified successfully")
 
     event = request.headers.get('X-GitHub-Event')
     data = request.json
 
+    logger.info(f"GitHub event: {event}")
+    logger.info(f"Action: {data.get('action')}")
+
     if event != 'issues' or data['action'] != 'opened':
+        logger.info("Event is not an issue being opened, ignoring")
         return jsonify({"message": "Received"}), 200
 
     issue = data['issue']
@@ -303,38 +329,58 @@ def webhook():
     owner = repo['owner']['login']
     repo_name = repo['name']
 
+    logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
+
     zip_content = download_repository(owner, repo_name)
     if not zip_content:
+        logger.error("Failed to download repository")
         return jsonify({"error": "Failed to download repository"}), 500
+
+    logger.info("Repository downloaded successfully")
 
     repo_dir = extract_repository(zip_content)
     if not repo_dir:
+        logger.error("Failed to extract repository")
         return jsonify({"error": "Failed to extract repository"}), 500
+
+    logger.info(f"Repository extracted to {repo_dir}")
 
     # Create a copy of the original repository
     original_repo_dir = repo_dir + '_original'
     shutil.copytree(repo_dir, original_repo_dir)
+    logger.info(f"Created original repository copy at {original_repo_dir}")
 
     files_list = extract_files_list_from_issue(issue['body'])
+    logger.info(f"Extracted files list from issue: {files_list}")
 
+    logger.info("Starting coding request")
     do_coding_request(issue['title'], issue['body'], files_list, repo_dir)
+    logger.info("Coding request completed")
 
     changed_file_paths = get_changed_file_paths(original_repo_dir, repo_dir)
+    logger.info(f"Changed files: {changed_file_paths}")
 
     # Clean up the original copy
     shutil.rmtree(original_repo_dir)
+    logger.info("Cleaned up original repository copy")
 
     branch_name = f"fix-issue-{issue['number']}"
     main_branch = repo['default_branch']
     main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
     
+    logger.info(f"Creating new branch: {branch_name}")
     new_branch = create_branch(owner, repo_name, branch_name, main_sha)
     if not new_branch:
+        logger.error("Failed to create new branch")
         return jsonify({"error": "Failed to create new branch"}), 500
 
+    logger.info("New branch created successfully")
+
     for file_path in changed_file_paths:
+        logger.info(f"Processing changed file: {file_path}")
         content = read_file(repo_dir, file_path)
         if not content:
+            logger.error(f"Failed to read file {file_path}")
             return jsonify({"error": f"Failed to read file {file_path}"}), 500
         update_result = update_file(
             owner,
@@ -345,8 +391,11 @@ def webhook():
             branch_name
         )
         if not update_result:
+            logger.error(f"Failed to update file {file_path}")
             return jsonify({"error": f"Failed to update file {file_path}"}), 500
+        logger.info(f"File {file_path} updated successfully")
 
+    logger.info("Creating pull request")
     pr = create_pull_request(
         owner,
         repo_name,
@@ -356,14 +405,20 @@ def webhook():
         main_branch
     )
     if not pr:
+        logger.error("Failed to create pull request")
         return jsonify({"error": "Failed to create pull request"}), 500
 
+    logger.info(f"Pull request created: {pr['html_url']}")
+
     comment_body = f"I've created a pull request to address this issue: {pr['html_url']}"
+    logger.info("Adding comment to the issue")
     comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
 
     if comment:
+        logger.info("Comment added successfully")
         return jsonify({"message": f"Pull request created and issue commented: {pr['html_url']}"}), 200
     else:
+        logger.warning("Failed to add comment to the issue")
         return jsonify({"message": f"Pull request created, but failed to comment on issue: {pr['html_url']}"}), 200
 
 if __name__ == '__main__':
