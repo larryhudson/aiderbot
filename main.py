@@ -226,6 +226,22 @@ def create_issue_comment(owner, repo, issue_number, body):
         logger.error(f"Failed to create issue comment: {response.text}")
         return None
 
+def extract_files_list_from_issue(issue_body):
+    files_list = []
+    files_section_started = False
+    for line in issue_body.split('\n'):
+        if line.strip() == 'Files:':
+            files_section_started = True
+            continue
+        if files_section_started:
+            if line.strip().startswith('- '):
+                files_list.append(line.strip()[2:])
+            elif line.strip() == '':
+                break
+            else:
+                break
+    return files_list
+
 def verify_webhook_signature(payload_body, signature_header):
     """Verify that the payload was sent from GitHub by validating SHA256."""
     if not signature_header:
