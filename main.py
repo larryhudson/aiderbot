@@ -401,6 +401,12 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
         logger.info(f"Created temporary directory: {temp_dir}")
 
         try:
+            # Check if pull_request['head']['ref'] is set
+            if 'head' not in pull_request or 'ref' not in pull_request['head']:
+                logger.error("pull_request['head']['ref'] is not set")
+                return {"error": "Invalid pull request data"}, 500
+            logger.info(f"pull_request['head']['ref'] is set to: {pull_request['head']['ref']}")
+
             # Download and extract the repository
             zip_content = download_repository(owner, repo_name, pull_request['head']['ref'])
             logger.info(f"Downloaded repository: {'Success' if zip_content else 'Failed'}")
