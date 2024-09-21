@@ -145,9 +145,13 @@ def extract_repository(zip_content, temp_dir):
         # Remove the now-empty subdirectory
         os.rmdir(full_extracted_path)
         
+        # Initialize git repository
+        subprocess.run(['git', 'init'], cwd=repo_dir, check=True)
+        logger.info(f"Initialized git repository in {repo_dir}")
+        
         return repo_dir
     except Exception as e:
-        logger.error(f"Failed to extract repository: {e}")
+        logger.error(f"Failed to extract repository or initialize git: {e}")
         return None
 
 def read_file(repo_dir, file_path):
@@ -595,7 +599,7 @@ def do_coding_request(prompt, files_list, root_folder_path):
     model = Model("claude-3-5-sonnet-20240620")
     full_file_paths = [os.path.join(root_folder_path, file) for file in files_list]
     io = InputOutput(yes=True)
-    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, use_git=False)
+    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, use_git=False, repo=root_folder_path)
 
     logger.info("Running coder with prompt")
     coder.run(prompt)
