@@ -374,23 +374,27 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
     try:
         # Get the original issue
         issue_number = extract_issue_number_from_pr_title(pull_request['title'])
+        logger.info(f"Extracted issue number: {issue_number}")
         if not issue_number:
             logger.error("Failed to extract issue number from PR title")
             return {"error": "Failed to extract issue number from PR title"}, 500
 
         issue = get_issue(owner, repo_name, issue_number)
+        logger.info(f"Retrieved issue: {issue['number'] if issue else None}")
         if not issue:
             logger.error(f"Failed to get issue #{issue_number}")
             return {"error": f"Failed to get issue #{issue_number}"}, 500
 
         # Get the PR diff
         pr_diff = get_pr_diff(owner, repo_name, pull_request['number'])
+        logger.info(f"Retrieved PR diff: {'Success' if pr_diff else 'Failed'}")
         if not pr_diff:
             logger.error("Failed to get PR diff")
             return {"error": "Failed to get PR diff"}, 500
 
         # Build the prompt
         prompt = build_prompt(issue, pr_diff, comment['body'])
+        logger.info("Built prompt for coding request")
 
         # Create a temporary directory
         temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
@@ -399,34 +403,44 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
         try:
             # Download and extract the repository
             zip_content = download_repository(owner, repo_name, pull_request['head']['ref'])
+            logger.info(f"Downloaded repository: {'Success' if zip_content else 'Failed'}")
             if not zip_content:
                 logger.error("Failed to download repository")
                 return {"error": "Failed to download repository"}, 500
 
             repo_dir = extract_repository(zip_content, temp_dir)
+            logger.info(f"Extracted repository to: {repo_dir}")
             if not repo_dir:
                 logger.error("Failed to extract repository")
                 return {"error": "Failed to extract repository"}, 500
 
             # Get the list of files changed in the PR
             changed_pr_files = get_pr_changed_files(owner, repo_name, pull_request['number'])
+            logger.info(f"Files changed in PR: {changed_pr_files}")
 
             mentioned_files = extract_files_list_from_issue(comment['body'])
+            logger.info(f"Files mentioned in comment: {mentioned_files}")
 
             files_list = list(set(changed_pr_files + mentioned_files))
+            logger.info(f"Combined files list: {files_list}")
 
             # Do the coding request
+            logger.info("Starting coding request")
             do_coding_request(prompt, files_list, repo_dir)
+            logger.info("Completed coding request")
 
             # Get the changed files
             changed_file_paths = get_changed_file_paths(repo_dir, repo_dir)  # Compare with itself to get all changes
+            logger.info(f"Files changed after coding request: {changed_file_paths}")
 
             # Update the files in the PR branch
             for file_path in changed_file_paths:
+                logger.info(f"Processing file: {file_path}")
                 content = read_file(repo_dir, file_path)
                 if not content:
                     logger.error(f"Failed to read file {file_path}")
                     return {"error": f"Failed to read file {file_path}"}, 500
+                logger.info(f"File content read successfully: {file_path}")
                 update_result = update_file(
                     owner,
                     repo_name,
@@ -445,6 +459,8 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
             pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], comment_body)
             if not pr_comment:
                 logger.warning("Failed to add comment to the PR")
+            else:
+                logger.info("Added comment to PR successfully")
 
             return {"message": "PR updated based on review comment"}, 200
 
@@ -455,6 +471,7 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
+        logger.exception("Full traceback:")
         return {"error": "An internal error occurred"}, 500
 
 def extract_issue_number_from_pr_title(title):
