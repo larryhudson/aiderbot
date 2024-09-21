@@ -149,6 +149,23 @@ def create_pull_request(owner, repo, title, body, head, base):
         logger.error(f"Failed to create pull request: {response.text}")
         return None
 
+def create_issue_comment(owner, repo, issue_number, body):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    data = {
+        "body": body
+    }
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 201:
+        return response.json()
+    else:
+        logger.error(f"Failed to create issue comment: {response.text}")
+        return None
+
 def verify_webhook_signature(payload_body, signature_header):
     """Verify that the payload was sent from GitHub by validating SHA256."""
     if not signature_header:
@@ -217,7 +234,14 @@ def webhook():
                     )
                     
                     if pr:
-                        return jsonify({"message": f"Pull request created: {pr['html_url']}"}), 200
+                        # Create a comment on the issue
+                        comment_body = f"I've created a pull request to update the README with this issue's content: {pr['html_url']}"
+                        comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
+                        
+                        if comment:
+                            return jsonify({"message": f"Pull request created and issue commented: {pr['html_url']}"}), 200
+                        else:
+                            return jsonify({"message": f"Pull request created, but failed to comment on issue: {pr['html_url']}"}), 200
                     else:
                         return jsonify({"error": "Failed to create pull request"}), 500
                 else:
