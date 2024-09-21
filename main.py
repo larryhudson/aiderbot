@@ -32,31 +32,44 @@ with open(GITHUB_PRIVATE_KEY_PATH, 'r') as key_file:
     GITHUB_PRIVATE_KEY = key_file.read()
 
 def get_github_token():
-    now = int(time.time())
-    payload = {
-        'iat': now,
-        'exp': now + (10 * 60),  # JWT expiration time (10 minute maximum)
-        'iss': GITHUB_APP_ID
-    }
-    
-    # Create JWT
-    jwt_token = jwt.encode(payload, GITHUB_PRIVATE_KEY, algorithm='RS256')
-    
-    # Get an installation access token
-    headers = {
-        'Authorization': f'Bearer {jwt_token}',
-        'Accept': 'application/vnd.github.v3+json'
-    }
-    response = requests.post(
-        f'https://api.github.com/app/installations/{GITHUB_INSTALLATION_ID}/access_tokens',
-        headers=headers
-    )
-    
-    if response.status_code == 201:
+    try:
+        # Open PEM file and read the signing key
+        with open(GITHUB_PRIVATE_KEY_PATH, 'rb') as pem_file:
+            signing_key = pem_file.read()
+
+        payload = {
+            'iat': int(time.time()),
+            'exp': int(time.time()) + 600,  # JWT expiration time (10 minutes maximum)
+            'iss': GITHUB_APP_ID
+        }
+
+        # Create JWT
+        jwt_token = jwt.encode(payload, signing_key, algorithm='RS256')
+
+        # Get an installation access token
+        headers = {
+            'Authorization': f'Bearer {jwt_token}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        response = requests.post(
+            f'https://api.github.com/app/installations/{GITHUB_INSTALLATION_ID}/access_tokens',
+            headers=headers
+        )
+
+        response.raise_for_status()
         return response.json()['token']
-    else:
-        logger.error(f"Failed to get GitHub token: {response.text}")
-        return None
+    except FileNotFoundError:
+        logger.error(f"Private key file not found: {GITHUB_PRIVATE_KEY_PATH}")
+    except jwt.PyJWTError as e:
+        logger.error(f"JWT encoding failed: {str(e)}")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to get GitHub token: {str(e)}")
+    except KeyError:
+        logger.error("Unexpected response format from GitHub API")
+    except Exception as e:
+        logger.error(f"Unexpected error in get_github_token: {str(e)}")
+    
+    return None
 
 def fetch_repository_contents(owner, repo, path, ref='main'):
     token = get_github_token()
