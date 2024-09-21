@@ -344,7 +344,7 @@ def create_pull_request_for_issue(owner, repo_name, issue):
             owner,
             repo_name,
             f"Fix issue #{issue['number']}: {coding_result['commit_message']}",
-            f"This PR addresses the changes requested in issue #{issue['number']}\n\n{coding_result['commit_message']}",
+            f"This PR addresses the changes requested in issue #{issue['number']}\n\n{coding_result['summary']}",
             branch_name,
             main_branch
         )
@@ -473,8 +473,10 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
                 return {"error": f"Failed to update file {file_path}"}, 500
             logger.info(f"File {file_path} updated successfully")
 
+        pr_comment_body = f"I've updated the PR based on the review comment.\n\n{coding_result['summary']}"
+
         # Add a comment to the PR
-        pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], coding_result['commit_message'])
+        pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], pr_comment_body)
         if not pr_comment:
             logger.warning("Failed to add comment to the PR")
         else:
@@ -608,11 +610,14 @@ def do_coding_request(prompt, files_list, root_folder_path):
     full_file_paths = [os.path.join(root_folder_path, file) for file in files_list]
     io = InputOutput(yes=True)
     git_repo = GitRepo(io, full_file_paths, root_folder_path, models=model.commit_message_models())
-    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo)
+    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False)
 
     logger.info("Running coder with prompt")
     coder.run(prompt)
     logger.info("Coding request completed")
+
+    summary_prompt = "/ask Thank you. Please provide a summary of the changes you just made."
+    summary = coder.run(summary_prompt)
 
     # Get the list of changed files in the last commit
     changed_files = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD~1'], cwd=root_folder_path).decode('utf-8').splitlines()
@@ -622,7 +627,8 @@ def do_coding_request(prompt, files_list, root_folder_path):
     logger.info(f"Changed files: {changed_files}")
 
     # Get the last commit message
-    commit_message = coder.get_commit_message()
+    commit_message = subprocess.check_output(['git', 'log', '-1',
+ '--pretty=%B'], cwd=root_folder_path).decode('utf-8').strip()
     if not commit_message:
         commit_message = "Update files based on the latest request"
     logger.info(f"Commit message: {commit_message}")
@@ -635,7 +641,8 @@ def do_coding_request(prompt, files_list, root_folder_path):
 
     return {
         'changed_files': changed_files,
-        'commit_message': commit_message
+        'commit_message': commit_message,
+        'summary': summary
     }
 
 
