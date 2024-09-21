@@ -12,6 +12,10 @@ import subprocess
 import base64
 import jwt
 import time
+import zipfile
+import io
+import tempfile
+import shutil
 
 load_dotenv()
 
@@ -71,25 +75,69 @@ def get_github_token():
     
     return None
 
-def fetch_repository_contents(owner, repo, path, ref='main'):
+def download_repository(owner, repo, ref='main'):
     token = get_github_token()
     if not token:
         logger.error("Failed to get GitHub token")
         return None
     
-    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+    url = f"https://api.github.com/repos/{owner}/{repo}/zipball/{ref}"
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
     }
-    params = {"ref": ref}
     try:
-        response = requests.get(url, headers=headers, params=params)
+        response = requests.get(url, headers=headers)
         response.raise_for_status()
-        return response.json()
+        return response.content
     except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to fetch repository contents: {e}")
+        logger.error(f"Failed to download repository: {e}")
         return None
+
+def extract_repository(zip_content):
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            with zipfile.ZipFile(io.BytesIO(zip_content)) as zip_ref:
+                zip_ref.extractall(temp_dir)
+            
+            # The extracted content is in a subdirectory, so we need to find it
+            extracted_dir = next(os.walk(temp_dir))[1][0]
+            full_extracted_path = os.path.join(temp_dir, extracted_dir)
+            
+            # Create a new temporary directory to copy the contents
+            with tempfile.TemporaryDirectory() as repo_dir:
+                # Copy the contents to the new directory
+                for item in os.listdir(full_extracted_path):
+                    s = os.path.join(full_extracted_path, item)
+                    d = os.path.join(repo_dir, item)
+                    if os.path.isdir(s):
+                        shutil.copytree(s, d)
+                    else:
+                        shutil.copy2(s, d)
+                
+                return repo_dir
+    except Exception as e:
+        logger.error(f"Failed to extract repository: {e}")
+        return None
+
+def read_file(repo_dir, file_path):
+    full_path = os.path.join(repo_dir, file_path)
+    try:
+        with open(full_path, 'r') as file:
+            return file.read()
+    except Exception as e:
+        logger.error(f"Failed to read file {file_path}: {e}")
+        return None
+
+def write_file(repo_dir, file_path, content):
+    full_path = os.path.join(repo_dir, file_path)
+    try:
+        with open(full_path, 'w') as file:
+            file.write(content)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to write file {file_path}: {e}")
+        return False
 
 def create_branch(owner, repo, branch_name, sha):
     token = get_github_token()
@@ -109,7 +157,7 @@ def create_branch(owner, repo, branch_name, sha):
         logger.error(f"Failed to create branch: {response.text}")
         return None
 
-def update_file(owner, repo, path, message, content, sha, branch):
+def update_file(owner, repo, path, message, content, branch):
     token = get_github_token()
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
     headers = {
@@ -119,11 +167,20 @@ def update_file(owner, repo, path, message, content, sha, branch):
     data = {
         "message": message,
         "content": base64.b64encode(content.encode()).decode(),
-        "sha": sha,
         "branch": branch
     }
-    response = requests.put(url, headers=headers, json=data)
+    
+    # First, get the current file to retrieve its SHA
+    response = requests.get(url, headers=headers, params={"ref": branch})
     if response.status_code == 200:
+        current_file = response.json()
+        data["sha"] = current_file["sha"]
+    elif response.status_code != 404:  # 404 means file doesn't exist yet
+        logger.error(f"Failed to get current file: {response.text}")
+        return None
+
+    response = requests.put(url, headers=headers, json=data)
+    if response.status_code in (200, 201):
         return response.json()
     else:
         logger.error(f"Failed to update file: {response.text}")
@@ -198,58 +255,70 @@ def webhook():
         owner = repo['owner']['login']
         repo_name = repo['name']
 
-        # Fetch repository contents
-        contents = fetch_repository_contents(owner, repo_name, 'README.md')
-        if contents:
-            file_content = base64.b64decode(contents['content']).decode('utf-8')
-            new_content = file_content + f"\n\n## New Issue\n\n{issue['body']}"
-            
-            # Create a new branch
-            branch_name = f"update-readme-issue-{issue['number']}"
-            main_branch = repo['default_branch']
-            main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
-            new_branch = create_branch(owner, repo_name, branch_name, main_sha)
-            
-            if new_branch:
-                # Update README.md in the new branch
-                update_result = update_file(
-                    owner,
-                    repo_name,
-                    'README.md',
-                    f'Update README with issue #{issue["number"]}',
-                    new_content,
-                    contents['sha'],
-                    branch_name
-                )
-                
-                if update_result:
-                    # Create pull request
-                    pr = create_pull_request(
-                        owner,
-                        repo_name,
-                        f"Update README with issue #{issue['number']}",
-                        f"This PR updates the README with the content from issue #{issue['number']}",
-                        branch_name,
-                        main_branch
-                    )
+        # Download repository
+        zip_content = download_repository(owner, repo_name)
+        if zip_content:
+            # Extract repository
+            repo_dir = extract_repository(zip_content)
+            if repo_dir:
+                # Read README.md
+                readme_content = read_file(repo_dir, 'README.md')
+                if readme_content is not None:
+                    new_content = readme_content + f"\n\n## New Issue\n\n{issue['body']}"
                     
-                    if pr:
-                        # Create a comment on the issue
-                        comment_body = f"I've created a pull request to update the README with this issue's content: {pr['html_url']}"
-                        comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
-                        
-                        if comment:
-                            return jsonify({"message": f"Pull request created and issue commented: {pr['html_url']}"}), 200
+                    # Create a new branch
+                    branch_name = f"update-readme-issue-{issue['number']}"
+                    main_branch = repo['default_branch']
+                    main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
+                    new_branch = create_branch(owner, repo_name, branch_name, main_sha)
+                    
+                    if new_branch:
+                        # Write updated README.md
+                        if write_file(repo_dir, 'README.md', new_content):
+                            # Update README.md in the new branch
+                            update_result = update_file(
+                                owner,
+                                repo_name,
+                                'README.md',
+                                f'Update README with issue #{issue["number"]}',
+                                new_content,
+                                branch_name
+                            )
+                            
+                            if update_result:
+                                # Create pull request
+                                pr = create_pull_request(
+                                    owner,
+                                    repo_name,
+                                    f"Update README with issue #{issue['number']}",
+                                    f"This PR updates the README with the content from issue #{issue['number']}",
+                                    branch_name,
+                                    main_branch
+                                )
+                                
+                                if pr:
+                                    # Create a comment on the issue
+                                    comment_body = f"I've created a pull request to update the README with this issue's content: {pr['html_url']}"
+                                    comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
+                                    
+                                    if comment:
+                                        return jsonify({"message": f"Pull request created and issue commented: {pr['html_url']}"}), 200
+                                    else:
+                                        return jsonify({"message": f"Pull request created, but failed to comment on issue: {pr['html_url']}"}), 200
+                                else:
+                                    return jsonify({"error": "Failed to create pull request"}), 500
+                            else:
+                                return jsonify({"error": "Failed to update file"}), 500
                         else:
-                            return jsonify({"message": f"Pull request created, but failed to comment on issue: {pr['html_url']}"}), 200
+                            return jsonify({"error": "Failed to write updated README.md"}), 500
                     else:
-                        return jsonify({"error": "Failed to create pull request"}), 500
+                        return jsonify({"error": "Failed to create new branch"}), 500
                 else:
-                    return jsonify({"error": "Failed to update file"}), 500
+                    return jsonify({"error": "Failed to read README.md"}), 500
             else:
-                return jsonify({"error": "Failed to create new branch"}), 500
+                return jsonify({"error": "Failed to extract repository"}), 500
         else:
-            return jsonify({"error": "Failed to fetch repository contents"}), 500
+            return jsonify({"error": "Failed to download repository"}), 500
 
     return jsonify({"message": "Received"}), 200
 
