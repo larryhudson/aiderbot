@@ -7,12 +7,14 @@ import hashlib
 import os
 from dotenv import load_dotenv
 
+
 load_dotenv()
 
 app = Flask(__name__)
 
 # Replace with your actual GitHub App's secret
 GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_here')
+
 
 def verify_webhook_signature(payload, signature):
     expected_signature = 'sha256=' + hmac.new(GITHUB_WEBHOOK_SECRET.encode(), payload, hashlib.sha256).hexdigest()
