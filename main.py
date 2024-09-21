@@ -30,26 +30,57 @@ def get_github_token():
     # This is a placeholder and needs to be implemented
     return "github_token"
 
-def fetch_repository_contents(owner, repo, path):
+def fetch_repository_contents(owner, repo, path, ref='main'):
     token = get_github_token()
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
     }
-    response = requests.get(url, headers=headers)
+    params = {"ref": ref}
+    response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
         return response.json()
     else:
         logger.error(f"Failed to fetch repository contents: {response.text}")
         return None
 
-def run_cli_command(command):
-    try:
-        result = subprocess.run(command, capture_output=True, text=True, shell=True)
-        return result.stdout
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Command failed: {e}")
+def create_branch(owner, repo, branch_name, sha):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/git/refs"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    data = {
+        "ref": f"refs/heads/{branch_name}",
+        "sha": sha
+    }
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 201:
+        return response.json()
+    else:
+        logger.error(f"Failed to create branch: {response.text}")
+        return None
+
+def update_file(owner, repo, path, message, content, sha, branch):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    data = {
+        "message": message,
+        "content": base64.b64encode(content.encode()).decode(),
+        "sha": sha,
+        "branch": branch
+    }
+    response = requests.put(url, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        logger.error(f"Failed to update file: {response.text}")
         return None
 
 def create_pull_request(owner, repo, title, body, head, base):
@@ -108,39 +139,45 @@ def webhook():
         contents = fetch_repository_contents(owner, repo_name, 'README.md')
         if contents:
             file_content = base64.b64decode(contents['content']).decode('utf-8')
-            
-            # Run CLI command (example: append issue body to README)
             new_content = file_content + f"\n\n## New Issue\n\n{issue['body']}"
             
             # Create a new branch
             branch_name = f"update-readme-issue-{issue['number']}"
-            run_cli_command(f"git checkout -b {branch_name}")
+            main_branch = repo['default_branch']
+            main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
+            new_branch = create_branch(owner, repo_name, branch_name, main_sha)
             
-            # Update README.md
-            with open('README.md', 'w') as f:
-                f.write(new_content)
-            
-            # Commit changes
-            run_cli_command("git add README.md")
-            run_cli_command(f"git commit -m 'Update README with issue #{issue['number']}'")
-            
-            # Push changes
-            run_cli_command(f"git push origin {branch_name}")
-            
-            # Create pull request
-            pr = create_pull_request(
-                owner,
-                repo_name,
-                f"Update README with issue #{issue['number']}",
-                f"This PR updates the README with the content from issue #{issue['number']}",
-                branch_name,
-                "main"
-            )
-            
-            if pr:
-                return jsonify({"message": f"Pull request created: {pr['html_url']}"}), 200
+            if new_branch:
+                # Update README.md in the new branch
+                update_result = update_file(
+                    owner,
+                    repo_name,
+                    'README.md',
+                    f'Update README with issue #{issue["number"]}',
+                    new_content,
+                    contents['sha'],
+                    branch_name
+                )
+                
+                if update_result:
+                    # Create pull request
+                    pr = create_pull_request(
+                        owner,
+                        repo_name,
+                        f"Update README with issue #{issue['number']}",
+                        f"This PR updates the README with the content from issue #{issue['number']}",
+                        branch_name,
+                        main_branch
+                    )
+                    
+                    if pr:
+                        return jsonify({"message": f"Pull request created: {pr['html_url']}"}), 200
+                    else:
+                        return jsonify({"error": "Failed to create pull request"}), 500
+                else:
+                    return jsonify({"error": "Failed to update file"}), 500
             else:
-                return jsonify({"error": "Failed to create pull request"}), 500
+                return jsonify({"error": "Failed to create new branch"}), 500
         else:
             return jsonify({"error": "Failed to fetch repository contents"}), 500
 
