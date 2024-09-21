@@ -122,28 +122,28 @@ def download_repository(owner, repo, ref='main'):
         logger.error(f"Failed to download repository: {e}")
         return None
 
-def extract_repository(zip_content):
+def extract_repository(zip_content, temp_dir):
     try:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with zipfile.ZipFile(io.BytesIO(zip_content)) as zip_ref:
-                zip_ref.extractall(temp_dir)
-            
-            # The extracted content is in a subdirectory, so we need to find it
-            extracted_dir = next(os.walk(temp_dir))[1][0]
-            full_extracted_path = os.path.join(temp_dir, extracted_dir)
-            
-            # Create a new temporary directory to copy the contents
-            with tempfile.TemporaryDirectory() as repo_dir:
-                # Copy the contents to the new directory
-                for item in os.listdir(full_extracted_path):
-                    s = os.path.join(full_extracted_path, item)
-                    d = os.path.join(repo_dir, item)
-                    if os.path.isdir(s):
-                        shutil.copytree(s, d)
-                    else:
-                        shutil.copy2(s, d)
-                
-                return repo_dir
+        repo_dir = os.path.join(temp_dir, f'repo_{uuid.uuid4().hex}')
+        os.makedirs(repo_dir, exist_ok=True)
+
+        with zipfile.ZipFile(io.BytesIO(zip_content)) as zip_ref:
+            zip_ref.extractall(repo_dir)
+        
+        # The extracted content is in a subdirectory, so we need to find it
+        extracted_dir = next(os.walk(repo_dir))[1][0]
+        full_extracted_path = os.path.join(repo_dir, extracted_dir)
+        
+        # Move the contents to the repo_dir
+        for item in os.listdir(full_extracted_path):
+            s = os.path.join(full_extracted_path, item)
+            d = os.path.join(repo_dir, item)
+            shutil.move(s, d)
+        
+        # Remove the now-empty subdirectory
+        os.rmdir(full_extracted_path)
+        
+        return repo_dir
     except Exception as e:
         logger.error(f"Failed to extract repository: {e}")
         return None
@@ -331,38 +331,43 @@ def webhook():
 
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
 
-    zip_content = download_repository(owner, repo_name)
-    if not zip_content:
-        logger.error("Failed to download repository")
-        return jsonify({"error": "Failed to download repository"}), 500
+    # Create a temporary directory within the current working directory
+    temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
+    logger.info(f"Created temporary directory: {temp_dir}")
 
-    logger.info("Repository downloaded successfully")
+    try:
+        zip_content = download_repository(owner, repo_name)
+        if not zip_content:
+            logger.error("Failed to download repository")
+            return jsonify({"error": "Failed to download repository"}), 500
 
-    repo_dir = extract_repository(zip_content)
-    if not repo_dir:
-        logger.error("Failed to extract repository")
-        return jsonify({"error": "Failed to extract repository"}), 500
+        logger.info("Repository downloaded successfully")
 
-    logger.info(f"Repository extracted to {repo_dir}")
+        repo_dir = extract_repository(zip_content, temp_dir)
+        if not repo_dir:
+            logger.error("Failed to extract repository")
+            return jsonify({"error": "Failed to extract repository"}), 500
 
-    # Create a copy of the original repository
-    original_repo_dir = repo_dir + '_original'
-    shutil.copytree(repo_dir, original_repo_dir)
-    logger.info(f"Created original repository copy at {original_repo_dir}")
+        logger.info(f"Repository extracted to {repo_dir}")
 
-    files_list = extract_files_list_from_issue(issue['body'])
-    logger.info(f"Extracted files list from issue: {files_list}")
+        # Create a copy of the original repository
+        original_repo_dir = os.path.join(temp_dir, f'original_{uuid.uuid4().hex}')
+        shutil.copytree(repo_dir, original_repo_dir)
+        logger.info(f"Created original repository copy at {original_repo_dir}")
 
-    logger.info("Starting coding request")
-    do_coding_request(issue['title'], issue['body'], files_list, repo_dir)
-    logger.info("Coding request completed")
+        files_list = extract_files_list_from_issue(issue['body'])
+        logger.info(f"Extracted files list from issue: {files_list}")
 
-    changed_file_paths = get_changed_file_paths(original_repo_dir, repo_dir)
-    logger.info(f"Changed files: {changed_file_paths}")
+        logger.info("Starting coding request")
+        do_coding_request(issue['title'], issue['body'], files_list, repo_dir)
+        logger.info("Coding request completed")
 
-    # Clean up the original copy
-    shutil.rmtree(original_repo_dir)
-    logger.info("Cleaned up original repository copy")
+        changed_file_paths = get_changed_file_paths(original_repo_dir, repo_dir)
+        logger.info(f"Changed files: {changed_file_paths}")
+
+        # Clean up the original copy
+        shutil.rmtree(original_repo_dir)
+        logger.info("Cleaned up original repository copy")
 
     branch_name = f"fix-issue-{issue['number']}"
     main_branch = repo['default_branch']
