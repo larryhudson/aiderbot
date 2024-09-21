@@ -298,10 +298,10 @@ def create_pull_request_for_issue(owner, repo_name, issue):
         logger.info("Prepared prompt for coding request")
 
         logger.info("Starting coding request")
-        do_coding_request(prompt, files_list, repo_dir)
+        coding_result = do_coding_request(prompt, files_list, repo_dir)
         logger.info("Coding request completed")
 
-        changed_file_paths = get_changed_file_paths(original_repo_dir, repo_dir)
+        changed_file_paths = coding_result['changed_files']
         logger.info(f"Changed files: {changed_file_paths}")
 
         # Clean up the original copy
@@ -330,7 +330,7 @@ def create_pull_request_for_issue(owner, repo_name, issue):
                 owner,
                 repo_name,
                 file_path,
-                f'Update with issue #{issue["number"]}',
+                coding_result['commit_message'],
                 content,
                 branch_name
             )
@@ -343,8 +343,8 @@ def create_pull_request_for_issue(owner, repo_name, issue):
         pr = create_pull_request(
             owner,
             repo_name,
-            f"Fix issue #{issue['number']}",
-            f"This PR addresses the changes requested in issue #{issue['number']}",
+            f"Fix issue #{issue['number']}: {coding_result['commit_message']}",
+            f"This PR addresses the changes requested in issue #{issue['number']}\n\n{coding_result['commit_message']}",
             branch_name,
             main_branch
         )
@@ -446,11 +446,10 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
 
         # Do the coding request
         logger.info("Starting coding request")
-        coder_response = do_coding_request(prompt, files_list, repo_dir)
+        coding_result = do_coding_request(prompt, files_list, repo_dir)
         logger.info("Completed coding request")
 
-        # Get the changed files
-        changed_file_paths = get_changed_file_paths(original_repo_dir, repo_dir)  # Compare with itself to get all changes
+        changed_file_paths = coding_result['changed_files']
         logger.info(f"Files changed after coding request: {changed_file_paths}")
 
         # Update the files in the PR branch
@@ -465,7 +464,7 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
                 owner,
                 repo_name,
                 file_path,
-                f'Update PR #{pull_request["number"]} based on review comment',
+                coding_result['commit_message'],
                 content,
                 pull_request['head']['ref']
             )
@@ -475,13 +474,13 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
             logger.info(f"File {file_path} updated successfully")
 
         # Add a comment to the PR
-        pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], coder_response)
+        pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], coding_result['commit_message'])
         if not pr_comment:
             logger.warning("Failed to add comment to the PR")
         else:
             logger.info("Added comment to PR successfully")
 
-        return {"message": "PR updated based on review comment"}, 200
+        return {"message": "PR updated based on review comment", "commit_message": coding_result['commit_message']}, 200
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
@@ -615,11 +614,18 @@ def do_coding_request(prompt, files_list, root_folder_path):
     coder.run(prompt)
     logger.info("Coding request completed")
 
-    summarization_prompt = "/ask Thank you. Please send through a summary of the changes you made."
+    # Get the list of changed files using git
+    changed_files = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD'], cwd=root_folder_path).decode('utf-8').splitlines()
+    logger.info(f"Changed files: {changed_files}")
 
-    coder_summary = coder.run(summarization_prompt)
+    # Get the last commit message
+    commit_message = subprocess.check_output(['git', 'log', '-1', '--pretty=%B'], cwd=root_folder_path).decode('utf-8').strip()
+    logger.info(f"Commit message: {commit_message}")
 
-    return coder_summary
+    return {
+        'changed_files': changed_files,
+        'commit_message': commit_message
+    }
 
 
 @app.route('/', methods=['GET'])
