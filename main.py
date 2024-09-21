@@ -486,7 +486,8 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
-        logger.exception("Full traceback:")
+        import traceback
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
         return {"error": f"An internal error occurred: {str(e)}"}, 500
 
     finally:
@@ -613,11 +614,18 @@ def do_coding_request(prompt, files_list, root_folder_path):
     coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False)
 
     logger.info("Running coder with prompt")
-    coder.run(prompt)
-    logger.info("Coding request completed")
+    try:
+        coder.run(prompt)
+        logger.info("Coding request completed")
 
-    summary_prompt = "/ask Thank you. Please provide a summary of the changes you just made."
-    summary = coder.run(summary_prompt)
+        summary_prompt = "/ask Thank you. Please provide a summary of the changes you just made."
+        summary = coder.run(summary_prompt)
+        logger.info("Summary generated successfully")
+    except Exception as e:
+        logger.error(f"Error during coding request: {str(e)}")
+        import traceback
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
+        raise  # Re-raise the exception to be caught by the outer try-except block
 
     # Get the list of changed files in the last commit
     changed_files = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD~1'], cwd=root_folder_path).decode('utf-8').splitlines()
