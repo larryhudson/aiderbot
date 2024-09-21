@@ -479,15 +479,15 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
 
         return {"message": "PR updated based on review comment"}, 200
 
-    finally:
-        # Clean up the temporary directory
-        shutil.rmtree(temp_dir)
-        logger.info(f"Cleaned up temporary directory: {temp_dir}")
-
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         logger.exception("Full traceback:")
         return {"error": "An internal error occurred"}, 500
+
+    finally:
+        # Clean up the temporary directory
+        shutil.rmtree(temp_dir)
+        logger.info(f"Cleaned up temporary directory: {temp_dir}")
 
 def extract_issue_number_from_pr_title(title):
     match = re.search(r'#(\d+)', title)
