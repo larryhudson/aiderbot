@@ -405,7 +405,9 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
                 return {"error": "Failed to extract repository"}, 500
 
             # Get the list of files changed in the PR
-            files_list = get_pr_changed_files(owner, repo_name, pull_request['number'])
+            changed_pr_files = get_pr_changed_files(owner, repo_name, pull_request['number'])
+
+            mentioned_files = extract_files_list_from_issue(comment['body'])
 
             # Do the coding request
             do_coding_request(prompt, "", files_list, repo_dir)
@@ -489,13 +491,13 @@ Original Issue:
 Title: {issue['title']}
 Body: {issue['body']}
 
-Pull Request Diff:
+Here is the original diff for the pull request:
 {pr_diff}
 
-Review Comment:
+Here is the review comment:
 {review_comment}
 
-Please suggest changes to address this review comment.
+Please make changes to address this review comment.
 """
 
 def get_pr_changed_files(owner, repo, pr_number):
