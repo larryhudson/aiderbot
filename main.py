@@ -18,6 +18,7 @@ import io
 import tempfile
 import shutil
 import filecmp
+import uuid
 from aider.coders import Coder
 from aider.models import Model
 from aider.io import InputOutput
