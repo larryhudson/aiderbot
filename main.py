@@ -16,11 +16,28 @@ import zipfile
 import io
 import tempfile
 import shutil
+import filecmp
 from aider.coders import Coder
 from aider.models import Model
 from aider.io import InputOutput
 
 load_dotenv()
+
+def get_changed_file_paths(original_dir, working_dir):
+    """
+    Compare two directories and return a list of files that have changed.
+    """
+    changed_files = []
+    comparison = filecmp.dircmp(original_dir, working_dir)
+    
+    def recurse_and_compare(dcmp):
+        for name in dcmp.diff_files:
+            changed_files.append(os.path.relpath(os.path.join(dcmp.right, name), working_dir))
+        for sub_dcmp in dcmp.subdirs.values():
+            recurse_and_compare(sub_dcmp)
+    
+    recurse_and_compare(comparison)
+    return changed_files
 
 app = Flask(__name__)
 
@@ -289,11 +306,18 @@ def webhook():
     if not repo_dir:
         return jsonify({"error": "Failed to extract repository"}), 500
 
+    # Create a copy of the original repository
+    original_repo_dir = repo_dir + '_original'
+    shutil.copytree(repo_dir, original_repo_dir)
+
     files_list = extract_files_list_from_issue(issue['body'])
 
     do_coding_request(issue['title'], issue['body'], files_list, repo_dir)
 
-    changed_file_paths = get_changed_file_paths(repo_dir)
+    changed_file_paths = get_changed_file_paths(original_repo_dir, repo_dir)
+
+    # Clean up the original copy
+    shutil.rmtree(original_repo_dir)
 
     branch_name = f"fix-issue-{issue['number']}"
     main_branch = repo['default_branch']
@@ -321,15 +345,15 @@ def webhook():
     pr = create_pull_request(
         owner,
         repo_name,
-        f"Update README with issue #{issue['number']}",
-        f"This PR updates the README with the content from issue #{issue['number']}",
+        f"Fix issue #{issue['number']}",
+        f"This PR addresses the changes requested in issue #{issue['number']}",
         branch_name,
         main_branch
     )
     if not pr:
         return jsonify({"error": "Failed to create pull request"}), 500
 
-    comment_body = f"I've created a pull request to update the README with this issue's content: {pr['html_url']}"
+    comment_body = f"I've created a pull request to address this issue: {pr['html_url']}"
     comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
 
     if comment:
