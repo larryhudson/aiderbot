@@ -5,12 +5,17 @@ from flask import Flask, request, jsonify
 import hmac
 import hashlib
 import os
+import logging
 from dotenv import load_dotenv
 
 
 load_dotenv()
 
 app = Flask(__name__)
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Replace with your actual GitHub App's secret
 GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_here')
@@ -43,6 +48,9 @@ def webhook():
 
     if not verify_webhook_signature(payload, signature):
         return jsonify({"error": "Request signatures didn't match!"}), 403
+
+    # Log the payload
+    logger.info(f"Received webhook payload: {payload.decode('utf-8')}")
 
     event = request.headers.get('X-GitHub-Event')
     if event == 'issues':
