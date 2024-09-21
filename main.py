@@ -252,6 +252,113 @@ def create_issue_comment(owner, repo, issue_number, body):
         logger.error(f"Failed to create issue comment: {response.text}")
         return None
 
+def create_pull_request_for_issue(owner, repo_name, issue):
+    logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
+
+    # Create a temporary directory within the current working directory
+    temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
+    logger.info(f"Created temporary directory: {temp_dir}")
+
+    try:
+        zip_content = download_repository(owner, repo_name)
+        if not zip_content:
+            logger.error("Failed to download repository")
+            return {"error": "Failed to download repository"}, 500
+
+        logger.info("Repository downloaded successfully")
+
+        repo_dir = extract_repository(zip_content, temp_dir)
+        if not repo_dir:
+            logger.error("Failed to extract repository")
+            return {"error": "Failed to extract repository"}, 500
+
+        logger.info(f"Repository extracted to {repo_dir}")
+
+        # Create a copy of the original repository
+        original_repo_dir = os.path.join(temp_dir, f'original_{uuid.uuid4().hex}')
+        shutil.copytree(repo_dir, original_repo_dir)
+        logger.info(f"Created original repository copy at {original_repo_dir}")
+
+        files_list = extract_files_list_from_issue(issue['body'])
+        logger.info(f"Extracted files list from issue: {files_list}")
+
+        logger.info("Starting coding request")
+        do_coding_request(issue['title'], issue['body'], files_list, repo_dir)
+        logger.info("Coding request completed")
+
+        changed_file_paths = get_changed_file_paths(original_repo_dir, repo_dir)
+        logger.info(f"Changed files: {changed_file_paths}")
+
+        # Clean up the original copy
+        shutil.rmtree(original_repo_dir)
+        logger.info("Cleaned up original repository copy")
+
+        branch_name = f"fix-issue-{issue['number']}"
+        main_branch = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}").json()['default_branch']
+        main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
+        
+        logger.info(f"Creating new branch: {branch_name}")
+        new_branch = create_branch(owner, repo_name, branch_name, main_sha)
+        if not new_branch:
+            logger.error("Failed to create new branch")
+            return {"error": "Failed to create new branch"}, 500
+
+        logger.info("New branch created successfully")
+
+        for file_path in changed_file_paths:
+            logger.info(f"Processing changed file: {file_path}")
+            content = read_file(repo_dir, file_path)
+            if not content:
+                logger.error(f"Failed to read file {file_path}")
+                return {"error": f"Failed to read file {file_path}"}, 500
+            update_result = update_file(
+                owner,
+                repo_name,
+                file_path,
+                f'Update with issue #{issue["number"]}',
+                content,
+                branch_name
+            )
+            if not update_result:
+                logger.error(f"Failed to update file {file_path}")
+                return {"error": f"Failed to update file {file_path}"}, 500
+            logger.info(f"File {file_path} updated successfully")
+
+        logger.info("Creating pull request")
+        pr = create_pull_request(
+            owner,
+            repo_name,
+            f"Fix issue #{issue['number']}",
+            f"This PR addresses the changes requested in issue #{issue['number']}",
+            branch_name,
+            main_branch
+        )
+        if not pr:
+            logger.error("Failed to create pull request")
+            return {"error": "Failed to create pull request"}, 500
+
+        logger.info(f"Pull request created: {pr['html_url']}")
+
+        comment_body = f"I've created a pull request to address this issue: {pr['html_url']}"
+        logger.info("Adding comment to the issue")
+        comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
+
+        if comment:
+            logger.info("Comment added successfully")
+            return {"message": f"Pull request created and issue commented: {pr['html_url']}"}, 200
+        else:
+            logger.warning("Failed to add comment to the issue")
+            return {"message": f"Pull request created, but failed to comment on issue: {pr['html_url']}"}, 200
+
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        return {"error": "An internal error occurred"}, 500
+
+    finally:
+        # Clean up the temporary directory
+        shutil.rmtree(temp_dir)
+        logger.info(f"Cleaned up temporary directory: {temp_dir}")
+
 def extract_files_list_from_issue(issue_body):
     files_list = []
     files_section_started = False
@@ -330,111 +437,8 @@ def webhook():
     owner = repo['owner']['login']
     repo_name = repo['name']
 
-    logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
-
-    # Create a temporary directory within the current working directory
-    temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
-    logger.info(f"Created temporary directory: {temp_dir}")
-
-    try:
-        zip_content = download_repository(owner, repo_name)
-        if not zip_content:
-            logger.error("Failed to download repository")
-            return jsonify({"error": "Failed to download repository"}), 500
-
-        logger.info("Repository downloaded successfully")
-
-        repo_dir = extract_repository(zip_content, temp_dir)
-        if not repo_dir:
-            logger.error("Failed to extract repository")
-            return jsonify({"error": "Failed to extract repository"}), 500
-
-        logger.info(f"Repository extracted to {repo_dir}")
-
-        # Create a copy of the original repository
-        original_repo_dir = os.path.join(temp_dir, f'original_{uuid.uuid4().hex}')
-        shutil.copytree(repo_dir, original_repo_dir)
-        logger.info(f"Created original repository copy at {original_repo_dir}")
-
-        files_list = extract_files_list_from_issue(issue['body'])
-        logger.info(f"Extracted files list from issue: {files_list}")
-
-        logger.info("Starting coding request")
-        do_coding_request(issue['title'], issue['body'], files_list, repo_dir)
-        logger.info("Coding request completed")
-
-        changed_file_paths = get_changed_file_paths(original_repo_dir, repo_dir)
-        logger.info(f"Changed files: {changed_file_paths}")
-
-        # Clean up the original copy
-        shutil.rmtree(original_repo_dir)
-        logger.info("Cleaned up original repository copy")
-
-        branch_name = f"fix-issue-{issue['number']}"
-        main_branch = repo['default_branch']
-        main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
-        
-        logger.info(f"Creating new branch: {branch_name}")
-        new_branch = create_branch(owner, repo_name, branch_name, main_sha)
-        if not new_branch:
-            logger.error("Failed to create new branch")
-            return jsonify({"error": "Failed to create new branch"}), 500
-
-        logger.info("New branch created successfully")
-
-        for file_path in changed_file_paths:
-            logger.info(f"Processing changed file: {file_path}")
-            content = read_file(repo_dir, file_path)
-            if not content:
-                logger.error(f"Failed to read file {file_path}")
-                return jsonify({"error": f"Failed to read file {file_path}"}), 500
-            update_result = update_file(
-                owner,
-                repo_name,
-                file_path,
-                f'Update with issue #{issue["number"]}',
-                content,
-                branch_name
-            )
-            if not update_result:
-                logger.error(f"Failed to update file {file_path}")
-                return jsonify({"error": f"Failed to update file {file_path}"}), 500
-            logger.info(f"File {file_path} updated successfully")
-
-        logger.info("Creating pull request")
-        pr = create_pull_request(
-            owner,
-            repo_name,
-            f"Fix issue #{issue['number']}",
-            f"This PR addresses the changes requested in issue #{issue['number']}",
-            branch_name,
-            main_branch
-        )
-        if not pr:
-            logger.error("Failed to create pull request")
-            return jsonify({"error": "Failed to create pull request"}), 500
-
-        logger.info(f"Pull request created: {pr['html_url']}")
-
-        comment_body = f"I've created a pull request to address this issue: {pr['html_url']}"
-        logger.info("Adding comment to the issue")
-        comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
-
-        if comment:
-            logger.info("Comment added successfully")
-            return jsonify({"message": f"Pull request created and issue commented: {pr['html_url']}"}), 200
-        else:
-            logger.warning("Failed to add comment to the issue")
-            return jsonify({"message": f"Pull request created, but failed to comment on issue: {pr['html_url']}"}), 200
-
-    except Exception as e:
-        logger.error(f"An error occurred: {str(e)}")
-        return jsonify({"error": "An internal error occurred"}), 500
-
-    finally:
-        # Clean up the temporary directory
-        shutil.rmtree(temp_dir)
-        logger.info(f"Cleaned up temporary directory: {temp_dir}")
+    result, status_code = create_pull_request_for_issue(owner, repo_name, issue)
+    return jsonify(result), status_code
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
