@@ -410,80 +410,79 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
         temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
         logger.info(f"Created temporary directory: {temp_dir}")
 
-        try:
-            # Check if pull_request['head']['ref'] is set
-            if 'head' not in pull_request or 'ref' not in pull_request['head']:
-                logger.error("pull_request['head']['ref'] is not set")
-                return {"error": "Invalid pull request data"}, 500
-            logger.info(f"pull_request['head']['ref'] is set to: {pull_request['head']['ref']}")
+        # Check if pull_request['head']['ref'] is set
+        if 'head' not in pull_request or 'ref' not in pull_request['head']:
+            logger.error("pull_request['head']['ref'] is not set")
+            return {"error": "Invalid pull request data"}, 500
+        logger.info(f"pull_request['head']['ref'] is set to: {pull_request['head']['ref']}")
 
-            # Download and extract the repository
-            zip_content = download_repository(owner, repo_name, pull_request['head']['ref'])
-            logger.info(f"Downloaded repository: {'Success' if zip_content else 'Failed'}")
-            if not zip_content:
-                logger.error("Failed to download repository")
-                return {"error": "Failed to download repository"}, 500
+        # Download and extract the repository
+        zip_content = download_repository(owner, repo_name, pull_request['head']['ref'])
+        logger.info(f"Downloaded repository: {'Success' if zip_content else 'Failed'}")
+        if not zip_content:
+            logger.error("Failed to download repository")
+            return {"error": "Failed to download repository"}, 500
 
-            repo_dir = extract_repository(zip_content, temp_dir)
-            logger.info(f"Extracted repository to: {repo_dir}")
-            if not repo_dir:
-                logger.error("Failed to extract repository")
-                return {"error": "Failed to extract repository"}, 500
+        repo_dir = extract_repository(zip_content, temp_dir)
+        logger.info(f"Extracted repository to: {repo_dir}")
+        if not repo_dir:
+            logger.error("Failed to extract repository")
+            return {"error": "Failed to extract repository"}, 500
 
-            # Get the list of files changed in the PR
-            changed_pr_files = get_pr_changed_files(owner, repo_name, pull_request['number'])
-            logger.info(f"Files changed in PR: {changed_pr_files}")
+        # Get the list of files changed in the PR
+        changed_pr_files = get_pr_changed_files(owner, repo_name, pull_request['number'])
+        logger.info(f"Files changed in PR: {changed_pr_files}")
 
-            mentioned_files = extract_files_list_from_issue(comment['body'])
-            logger.info(f"Files mentioned in comment: {mentioned_files}")
+        mentioned_files = extract_files_list_from_issue(comment['body'])
+        logger.info(f"Files mentioned in comment: {mentioned_files}")
 
-            files_list = list(set(changed_pr_files + mentioned_files))
-            logger.info(f"Combined files list: {files_list}")
+        files_list = list(set(changed_pr_files + mentioned_files))
+        logger.info(f"Combined files list: {files_list}")
 
-            # Do the coding request
-            logger.info("Starting coding request")
-            do_coding_request(prompt, files_list, repo_dir)
-            logger.info("Completed coding request")
+        # Do the coding request
+        logger.info("Starting coding request")
+        do_coding_request(prompt, files_list, repo_dir)
+        logger.info("Completed coding request")
 
-            # Get the changed files
-            changed_file_paths = get_changed_file_paths(repo_dir, repo_dir)  # Compare with itself to get all changes
-            logger.info(f"Files changed after coding request: {changed_file_paths}")
+        # Get the changed files
+        changed_file_paths = get_changed_file_paths(repo_dir, repo_dir)  # Compare with itself to get all changes
+        logger.info(f"Files changed after coding request: {changed_file_paths}")
 
-            # Update the files in the PR branch
-            for file_path in changed_file_paths:
-                logger.info(f"Processing file: {file_path}")
-                content = read_file(repo_dir, file_path)
-                if not content:
-                    logger.error(f"Failed to read file {file_path}")
-                    return {"error": f"Failed to read file {file_path}"}, 500
-                logger.info(f"File content read successfully: {file_path}")
-                update_result = update_file(
-                    owner,
-                    repo_name,
-                    file_path,
-                    f'Update PR #{pull_request["number"]} based on review comment',
-                    content,
-                    pull_request['head']['ref']
-                )
-                if not update_result:
-                    logger.error(f"Failed to update file {file_path}")
-                    return {"error": f"Failed to update file {file_path}"}, 500
-                logger.info(f"File {file_path} updated successfully")
+        # Update the files in the PR branch
+        for file_path in changed_file_paths:
+            logger.info(f"Processing file: {file_path}")
+            content = read_file(repo_dir, file_path)
+            if not content:
+                logger.error(f"Failed to read file {file_path}")
+                return {"error": f"Failed to read file {file_path}"}, 500
+            logger.info(f"File content read successfully: {file_path}")
+            update_result = update_file(
+                owner,
+                repo_name,
+                file_path,
+                f'Update PR #{pull_request["number"]} based on review comment',
+                content,
+                pull_request['head']['ref']
+            )
+            if not update_result:
+                logger.error(f"Failed to update file {file_path}")
+                return {"error": f"Failed to update file {file_path}"}, 500
+            logger.info(f"File {file_path} updated successfully")
 
-            # Add a comment to the PR
-            comment_body = "I've updated the PR based on the review comment. Please check the changes."
-            pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], comment_body)
-            if not pr_comment:
-                logger.warning("Failed to add comment to the PR")
-            else:
-                logger.info("Added comment to PR successfully")
+        # Add a comment to the PR
+        comment_body = "I've updated the PR based on the review comment. Please check the changes."
+        pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], comment_body)
+        if not pr_comment:
+            logger.warning("Failed to add comment to the PR")
+        else:
+            logger.info("Added comment to PR successfully")
 
-            return {"message": "PR updated based on review comment"}, 200
+        return {"message": "PR updated based on review comment"}, 200
 
-        finally:
-            # Clean up the temporary directory
-            shutil.rmtree(temp_dir)
-            logger.info(f"Cleaned up temporary directory: {temp_dir}")
+    finally:
+        # Clean up the temporary directory
+        shutil.rmtree(temp_dir)
+        logger.info(f"Cleaned up temporary directory: {temp_dir}")
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
