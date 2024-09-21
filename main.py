@@ -487,7 +487,7 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         logger.exception("Full traceback:")
-        return {"error": "An internal error occurred"}, 500
+        return {"error": f"An internal error occurred: {str(e)}"}, 500
 
     finally:
         # Clean up the temporary directory
@@ -652,44 +652,49 @@ def index():
 
 @app.route('/webhook', methods=['POST'])
 def webhook():
-    signature = request.headers.get('X-Hub-Signature-256')
-    payload = request.data
+    try:
+        signature = request.headers.get('X-Hub-Signature-256')
+        payload = request.data
 
-    logger.info(f"Received webhook with signature: {signature}")
-    logger.info(f"Payload: {payload.decode('utf-8')}")
+        logger.info(f"Received webhook with signature: {signature}")
+        logger.info(f"Payload: {payload.decode('utf-8')}")
 
-    if not verify_webhook_signature(payload, signature):
-        logger.warning("Webhook signature verification failed")
-        return jsonify({"error": "Request signatures didn't match!"}), 403
+        if not verify_webhook_signature(payload, signature):
+            logger.warning("Webhook signature verification failed")
+            return jsonify({"error": "Request signatures didn't match!"}), 403
 
-    logger.info("Webhook signature verified successfully")
+        logger.info("Webhook signature verified successfully")
 
-    event = request.headers.get('X-GitHub-Event')
-    data = request.json
+        event = request.headers.get('X-GitHub-Event')
+        data = request.json
 
-    logger.info(f"GitHub event: {event}")
-    logger.info(f"Action: {data.get('action')}")
+        logger.info(f"GitHub event: {event}")
+        logger.info(f"Action: {data.get('action')}")
 
-    if event == 'issues' and data['action'] == 'opened':
-        issue = data['issue']
-        repo = data['repository']
-        owner = repo['owner']['login']
-        repo_name = repo['name']
+        if event == 'issues' and data['action'] == 'opened':
+            issue = data['issue']
+            repo = data['repository']
+            owner = repo['owner']['login']
+            repo_name = repo['name']
 
-        result, status_code = create_pull_request_for_issue(owner, repo_name, issue)
-        return jsonify(result), status_code
-    elif event == 'pull_request_review_comment' and data['action'] == 'created':
-        comment = data['comment']
-        pull_request = data['pull_request']
-        repo = data['repository']
-        owner = repo['owner']['login']
-        repo_name = repo['name']
+            result, status_code = create_pull_request_for_issue(owner, repo_name, issue)
+            return jsonify(result), status_code
+        elif event == 'pull_request_review_comment' and data['action'] == 'created':
+            comment = data['comment']
+            pull_request = data['pull_request']
+            repo = data['repository']
+            owner = repo['owner']['login']
+            repo_name = repo['name']
 
-        result, status_code = handle_pr_review_comment(owner, repo_name, pull_request, comment)
-        return jsonify(result), status_code
-    else:
-        logger.info("Event is not handled, ignoring")
-        return jsonify({"message": "Received"}), 200
+            result, status_code = handle_pr_review_comment(owner, repo_name, pull_request, comment)
+            return jsonify(result), status_code
+        else:
+            logger.info("Event is not handled, ignoring")
+            return jsonify({"message": "Received"}), 200
+    except Exception as e:
+        logger.error(f"An error occurred in webhook handler: {str(e)}")
+        logger.exception("Full traceback:")
+        return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
