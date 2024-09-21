@@ -1,3 +1,4 @@
+from aider.repo import GitRepo
 from flask import Flask, request, jsonify
 import hmac
 import hashlib
@@ -148,6 +149,11 @@ def extract_repository(zip_content, temp_dir):
         # Initialize git repository
         subprocess.run(['git', 'init'], cwd=repo_dir, check=True)
         logger.info(f"Initialized git repository in {repo_dir}")
+
+        # Make initial commit
+        subprocess.run(['git', 'add', '-A'], cwd=repo_dir, check=True)
+        subprocess.run(['git', 'commit', '-m', 'initial'], cwd=repo_dir, check=True)
+
         
         return repo_dir
     except Exception as e:
@@ -599,7 +605,8 @@ def do_coding_request(prompt, files_list, root_folder_path):
     model = Model("claude-3-5-sonnet-20240620")
     full_file_paths = [os.path.join(root_folder_path, file) for file in files_list]
     io = InputOutput(yes=True)
-    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, use_git=False, repo=root_folder_path)
+    git_repo = GitRepo(io, full_file_paths, root_folder_path)
+    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo)
 
     logger.info("Running coder with prompt")
     coder.run(prompt)
