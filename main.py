@@ -359,6 +359,175 @@ def create_pull_request_for_issue(owner, repo_name, issue):
         shutil.rmtree(temp_dir)
         logger.info(f"Cleaned up temporary directory: {temp_dir}")
 
+def handle_pr_review_comment(owner, repo_name, pull_request, comment):
+    logger.info(f"Processing PR review comment for PR #{pull_request['number']} in {owner}/{repo_name}")
+
+    if 'LGTM' in comment['body']:
+        logger.info("Comment contains 'LGTM', no action needed")
+        return {"message": "Comment acknowledged, no action needed"}, 200
+
+    try:
+        # Get the original issue
+        issue_number = extract_issue_number_from_pr_title(pull_request['title'])
+        if not issue_number:
+            logger.error("Failed to extract issue number from PR title")
+            return {"error": "Failed to extract issue number from PR title"}, 500
+
+        issue = get_issue(owner, repo_name, issue_number)
+        if not issue:
+            logger.error(f"Failed to get issue #{issue_number}")
+            return {"error": f"Failed to get issue #{issue_number}"}, 500
+
+        # Get the PR diff
+        pr_diff = get_pr_diff(owner, repo_name, pull_request['number'])
+        if not pr_diff:
+            logger.error("Failed to get PR diff")
+            return {"error": "Failed to get PR diff"}, 500
+
+        # Build the prompt
+        prompt = build_prompt(issue, pr_diff, comment['body'])
+
+        # Create a temporary directory
+        temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
+        logger.info(f"Created temporary directory: {temp_dir}")
+
+        try:
+            # Download and extract the repository
+            zip_content = download_repository(owner, repo_name, pull_request['head']['ref'])
+            if not zip_content:
+                logger.error("Failed to download repository")
+                return {"error": "Failed to download repository"}, 500
+
+            repo_dir = extract_repository(zip_content, temp_dir)
+            if not repo_dir:
+                logger.error("Failed to extract repository")
+                return {"error": "Failed to extract repository"}, 500
+
+            # Get the list of files changed in the PR
+            files_list = get_pr_changed_files(owner, repo_name, pull_request['number'])
+
+            # Do the coding request
+            do_coding_request(prompt, "", files_list, repo_dir)
+
+            # Get the changed files
+            changed_file_paths = get_changed_file_paths(repo_dir, repo_dir)  # Compare with itself to get all changes
+
+            # Update the files in the PR branch
+            for file_path in changed_file_paths:
+                content = read_file(repo_dir, file_path)
+                if not content:
+                    logger.error(f"Failed to read file {file_path}")
+                    return {"error": f"Failed to read file {file_path}"}, 500
+                update_result = update_file(
+                    owner,
+                    repo_name,
+                    file_path,
+                    f'Update PR #{pull_request["number"]} based on review comment',
+                    content,
+                    pull_request['head']['ref']
+                )
+                if not update_result:
+                    logger.error(f"Failed to update file {file_path}")
+                    return {"error": f"Failed to update file {file_path}"}, 500
+                logger.info(f"File {file_path} updated successfully")
+
+            # Add a comment to the PR
+            comment_body = "I've updated the PR based on the review comment. Please check the changes."
+            pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], comment_body)
+            if not pr_comment:
+                logger.warning("Failed to add comment to the PR")
+
+            return {"message": "PR updated based on review comment"}, 200
+
+        finally:
+            # Clean up the temporary directory
+            shutil.rmtree(temp_dir)
+            logger.info(f"Cleaned up temporary directory: {temp_dir}")
+
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        return {"error": "An internal error occurred"}, 500
+
+def extract_issue_number_from_pr_title(title):
+    match = re.search(r'#(\d+)', title)
+    return int(match.group(1)) if match else None
+
+def get_issue(owner, repo, issue_number):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        logger.error(f"Failed to get issue: {response.text}")
+        return None
+
+def get_pr_diff(owner, repo, pr_number):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3.diff"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.text
+    else:
+        logger.error(f"Failed to get PR diff: {response.text}")
+        return None
+
+def build_prompt(issue, pr_diff, review_comment):
+    return f"""
+Please help me address the following review comment on a pull request:
+
+Original Issue:
+Title: {issue['title']}
+Body: {issue['body']}
+
+Pull Request Diff:
+{pr_diff}
+
+Review Comment:
+{review_comment}
+
+Please suggest changes to address this review comment.
+"""
+
+def get_pr_changed_files(owner, repo, pr_number):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return [file['filename'] for file in response.json()]
+    else:
+        logger.error(f"Failed to get PR changed files: {response.text}")
+        return []
+
+def create_pr_comment(owner, repo, pr_number, body):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    data = {
+        "body": body
+    }
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 201:
+        return response.json()
+    else:
+        logger.error(f"Failed to create PR comment: {response.text}")
+        return None
+
 def extract_files_list_from_issue(issue_body):
     files_list = []
     files_section_started = False
@@ -428,17 +597,26 @@ def webhook():
     logger.info(f"GitHub event: {event}")
     logger.info(f"Action: {data.get('action')}")
 
-    if event != 'issues' or data['action'] != 'opened':
-        logger.info("Event is not an issue being opened, ignoring")
+    if event == 'issues' and data['action'] == 'opened':
+        issue = data['issue']
+        repo = data['repository']
+        owner = repo['owner']['login']
+        repo_name = repo['name']
+
+        result, status_code = create_pull_request_for_issue(owner, repo_name, issue)
+        return jsonify(result), status_code
+    elif event == 'pull_request_review_comment' and data['action'] == 'created':
+        comment = data['comment']
+        pull_request = data['pull_request']
+        repo = data['repository']
+        owner = repo['owner']['login']
+        repo_name = repo['name']
+
+        result, status_code = handle_pr_review_comment(owner, repo_name, pull_request, comment)
+        return jsonify(result), status_code
+    else:
+        logger.info("Event is not handled, ignoring")
         return jsonify({"message": "Received"}), 200
-
-    issue = data['issue']
-    repo = data['repository']
-    owner = repo['owner']['login']
-    repo_name = repo['name']
-
-    result, status_code = create_pull_request_for_issue(owner, repo_name, issue)
-    return jsonify(result), status_code
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
