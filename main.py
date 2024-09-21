@@ -413,8 +413,10 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
 
             mentioned_files = extract_files_list_from_issue(comment['body'])
 
+            files_list = list(set(changed_pr_files + mentioned_files))
+
             # Do the coding request
-            do_coding_request(prompt, "", files_list, repo_dir)
+            do_coding_request(prompt, files_list, repo_dir)
 
             # Get the changed files
             changed_file_paths = get_changed_file_paths(repo_dir, repo_dir)  # Compare with itself to get all changes
