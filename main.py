@@ -273,6 +273,11 @@ def do_coding_request(issue_title, issue_body, files_list, root_folder_path):
     io = InputOutput(yes=True)
     coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, use_git=False)
 
+    coder_prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue_title}\n\nIssue Body: {issue_body}"
+
+    coder.run(coder_prompt)
+
+
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({"message": "Hello, World!"})
