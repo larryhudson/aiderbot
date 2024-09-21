@@ -16,6 +16,9 @@ import zipfile
 import io
 import tempfile
 import shutil
+from aider.coders import Coder
+from aider.models import Model
+from aider.io import InputOutput
 
 load_dotenv()
 
@@ -231,6 +234,12 @@ def verify_webhook_signature(payload_body, signature_header):
     expected_signature = "sha256=" + hash_object.hexdigest()
     return hmac.compare_digest(expected_signature, signature_header)
 
+def do_coding_request(issue_title, issue_body, files_list, root_folder_path):
+    model = Model("claude-3-5-sonnet-20240620")
+    full_file_paths = [os.path.join(root_folder_path, file) for file in files_list]
+    io = InputOutput(yes=True)
+    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, use_git=False)
+
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({"message": "Hello, World!"})
@@ -264,12 +273,13 @@ def webhook():
     if not repo_dir:
         return jsonify({"error": "Failed to extract repository"}), 500
 
-    readme_content = read_file(repo_dir, 'README.md')
-    if readme_content is None:
-        return jsonify({"error": "Failed to read README.md"}), 500
+    files_list = extract_files_list_from_issue(issue['body'])
 
-    new_content = readme_content + f"\n\n## New Issue\n\n{issue['body']}"
-    branch_name = f"update-readme-issue-{issue['number']}"
+    do_coding_request(issue['title'], issue['body'], files_list, repo_dir)
+
+    changed_file_paths = get_changed_file_paths(repo_dir)
+
+    branch_name = f"fix-issue-{issue['number']}"
     main_branch = repo['default_branch']
     main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
     
@@ -277,19 +287,20 @@ def webhook():
     if not new_branch:
         return jsonify({"error": "Failed to create new branch"}), 500
 
-    if not write_file(repo_dir, 'README.md', new_content):
-        return jsonify({"error": "Failed to write updated README.md"}), 500
-
-    update_result = update_file(
-        owner,
-        repo_name,
-        'README.md',
-        f'Update README with issue #{issue["number"]}',
-        new_content,
-        branch_name
-    )
-    if not update_result:
-        return jsonify({"error": "Failed to update file"}), 500
+    for file_path in changed_file_paths:
+        content = read_file(repo_dir, file_path)
+        if not content:
+            return jsonify({"error": f"Failed to read file {file_path}"}), 500
+        update_result = update_file(
+            owner,
+            repo_name,
+            file_path,
+            f'Update with issue #{issue["number"]}',
+            content,
+            branch_name
+        )
+        if not update_result:
+            return jsonify({"error": f"Failed to update file {file_path}"}), 500
 
     pr = create_pull_request(
         owner,
