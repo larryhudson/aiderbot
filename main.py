@@ -614,13 +614,24 @@ def do_coding_request(prompt, files_list, root_folder_path):
     coder.run(prompt)
     logger.info("Coding request completed")
 
-    # Get the list of changed files using git
-    changed_files = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD'], cwd=root_folder_path).decode('utf-8').splitlines()
+    # Get the list of changed files in the last commit
+    changed_files = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD~1'], cwd=root_folder_path).decode('utf-8').splitlines()
+    if not changed_files:
+        # If no changes detected, get all files tracked by git
+        changed_files = subprocess.check_output(['git', 'ls-files'], cwd=root_folder_path).decode('utf-8').splitlines()
     logger.info(f"Changed files: {changed_files}")
 
     # Get the last commit message
-    commit_message = subprocess.check_output(['git', 'log', '-1', '--pretty=%B'], cwd=root_folder_path).decode('utf-8').strip()
+    commit_message = coder.get_commit_message()
+    if not commit_message:
+        commit_message = "Update files based on the latest request"
     logger.info(f"Commit message: {commit_message}")
+
+    # Make a commit if there are changes
+    if changed_files:
+        subprocess.run(['git', 'add', '-A'], cwd=root_folder_path, check=True)
+        subprocess.run(['git', 'commit', '-m', commit_message], cwd=root_folder_path, check=True)
+        logger.info("Changes committed")
 
     return {
         'changed_files': changed_files,
