@@ -370,6 +370,15 @@ def webhook():
         shutil.rmtree(original_repo_dir)
         logger.info("Cleaned up original repository copy")
 
+    except Exception as e:
+        logger.error(f"An error occurred: {str(e)}")
+        return jsonify({"error": "An internal error occurred"}), 500
+
+    finally:
+        # Clean up the temporary directory
+        shutil.rmtree(temp_dir)
+        logger.info(f"Cleaned up temporary directory: {temp_dir}")
+
     branch_name = f"fix-issue-{issue['number']}"
     main_branch = repo['default_branch']
     main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
