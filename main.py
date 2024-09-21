@@ -439,13 +439,18 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
         files_list = list(set(changed_pr_files + mentioned_files))
         logger.info(f"Combined files list: {files_list}")
 
+        # Create a copy of the original repository
+        original_repo_dir = os.path.join(temp_dir, f'original_{uuid.uuid4().hex}')
+        shutil.copytree(repo_dir, original_repo_dir)
+        logger.info(f"Created original repository copy at {original_repo_dir}")
+
         # Do the coding request
         logger.info("Starting coding request")
-        do_coding_request(prompt, files_list, repo_dir)
+        coder_response = do_coding_request(prompt, files_list, repo_dir)
         logger.info("Completed coding request")
 
         # Get the changed files
-        changed_file_paths = get_changed_file_paths(repo_dir, repo_dir)  # Compare with itself to get all changes
+        changed_file_paths = get_changed_file_paths(original_repo_dir, repo_dir)  # Compare with itself to get all changes
         logger.info(f"Files changed after coding request: {changed_file_paths}")
 
         # Update the files in the PR branch
@@ -470,8 +475,7 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
             logger.info(f"File {file_path} updated successfully")
 
         # Add a comment to the PR
-        comment_body = "I've updated the PR based on the review comment. Please check the changes."
-        pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], comment_body)
+        pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], coder_response)
         if not pr_comment:
             logger.warning("Failed to add comment to the PR")
         else:
@@ -604,12 +608,18 @@ def do_coding_request(prompt, files_list, root_folder_path):
     model = Model("claude-3-5-sonnet-20240620")
     full_file_paths = [os.path.join(root_folder_path, file) for file in files_list]
     io = InputOutput(yes=True)
-    git_repo = GitRepo(io, full_file_paths, root_folder_path)
+    git_repo = GitRepo(io, full_file_paths, root_folder_path, models=model.commit_message_models())
     coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo)
 
     logger.info("Running coder with prompt")
     coder.run(prompt)
     logger.info("Coding request completed")
+
+    summarization_prompt = "/ask Thank you. Please send through a summary of the changes you made."
+
+    coder_summary = coder.run(summarization_prompt)
+
+    return coder_summary
 
 
 @app.route('/', methods=['GET'])
