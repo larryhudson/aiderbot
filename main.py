@@ -243,84 +243,72 @@ def webhook():
     if not verify_webhook_signature(payload, signature):
         return jsonify({"error": "Request signatures didn't match!"}), 403
 
-    # Log the payload
     logger.info(f"Received webhook payload: {payload.decode('utf-8')}")
 
     event = request.headers.get('X-GitHub-Event')
     data = request.json
 
-    if event == 'issues' and data['action'] == 'opened':
-        issue = data['issue']
-        repo = data['repository']
-        owner = repo['owner']['login']
-        repo_name = repo['name']
+    if event != 'issues' or data['action'] != 'opened':
+        return jsonify({"message": "Received"}), 200
 
-        # Download repository
-        zip_content = download_repository(owner, repo_name)
-        if zip_content:
-            # Extract repository
-            repo_dir = extract_repository(zip_content)
-            if repo_dir:
-                # Read README.md
-                readme_content = read_file(repo_dir, 'README.md')
-                if readme_content is not None:
-                    new_content = readme_content + f"\n\n## New Issue\n\n{issue['body']}"
-                    
-                    # Create a new branch
-                    branch_name = f"update-readme-issue-{issue['number']}"
-                    main_branch = repo['default_branch']
-                    main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
-                    new_branch = create_branch(owner, repo_name, branch_name, main_sha)
-                    
-                    if new_branch:
-                        # Write updated README.md
-                        if write_file(repo_dir, 'README.md', new_content):
-                            # Update README.md in the new branch
-                            update_result = update_file(
-                                owner,
-                                repo_name,
-                                'README.md',
-                                f'Update README with issue #{issue["number"]}',
-                                new_content,
-                                branch_name
-                            )
-                            
-                            if update_result:
-                                # Create pull request
-                                pr = create_pull_request(
-                                    owner,
-                                    repo_name,
-                                    f"Update README with issue #{issue['number']}",
-                                    f"This PR updates the README with the content from issue #{issue['number']}",
-                                    branch_name,
-                                    main_branch
-                                )
-                                
-                                if pr:
-                                    # Create a comment on the issue
-                                    comment_body = f"I've created a pull request to update the README with this issue's content: {pr['html_url']}"
-                                    comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
-                                    
-                                    if comment:
-                                        return jsonify({"message": f"Pull request created and issue commented: {pr['html_url']}"}), 200
-                                    else:
-                                        return jsonify({"message": f"Pull request created, but failed to comment on issue: {pr['html_url']}"}), 200
-                                else:
-                                    return jsonify({"error": "Failed to create pull request"}), 500
-                            else:
-                                return jsonify({"error": "Failed to update file"}), 500
-                        else:
-                            return jsonify({"error": "Failed to write updated README.md"}), 500
-                    else:
-                        return jsonify({"error": "Failed to create new branch"}), 500
-                else:
-                    return jsonify({"error": "Failed to read README.md"}), 500
-            else:
-                return jsonify({"error": "Failed to extract repository"}), 500
-        else:
-            return jsonify({"error": "Failed to download repository"}), 500
+    issue = data['issue']
+    repo = data['repository']
+    owner = repo['owner']['login']
+    repo_name = repo['name']
 
-    return jsonify({"message": "Received"}), 200
+    zip_content = download_repository(owner, repo_name)
+    if not zip_content:
+        return jsonify({"error": "Failed to download repository"}), 500
+
+    repo_dir = extract_repository(zip_content)
+    if not repo_dir:
+        return jsonify({"error": "Failed to extract repository"}), 500
+
+    readme_content = read_file(repo_dir, 'README.md')
+    if readme_content is None:
+        return jsonify({"error": "Failed to read README.md"}), 500
+
+    new_content = readme_content + f"\n\n## New Issue\n\n{issue['body']}"
+    branch_name = f"update-readme-issue-{issue['number']}"
+    main_branch = repo['default_branch']
+    main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
+    
+    new_branch = create_branch(owner, repo_name, branch_name, main_sha)
+    if not new_branch:
+        return jsonify({"error": "Failed to create new branch"}), 500
+
+    if not write_file(repo_dir, 'README.md', new_content):
+        return jsonify({"error": "Failed to write updated README.md"}), 500
+
+    update_result = update_file(
+        owner,
+        repo_name,
+        'README.md',
+        f'Update README with issue #{issue["number"]}',
+        new_content,
+        branch_name
+    )
+    if not update_result:
+        return jsonify({"error": "Failed to update file"}), 500
+
+    pr = create_pull_request(
+        owner,
+        repo_name,
+        f"Update README with issue #{issue['number']}",
+        f"This PR updates the README with the content from issue #{issue['number']}",
+        branch_name,
+        main_branch
+    )
+    if not pr:
+        return jsonify({"error": "Failed to create pull request"}), 500
+
+    comment_body = f"I've created a pull request to update the README with this issue's content: {pr['html_url']}"
+    comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
+
+    if comment:
+        return jsonify({"message": f"Pull request created and issue commented: {pr['html_url']}"}), 200
+    else:
+        return jsonify({"message": f"Pull request created, but failed to comment on issue: {pr['html_url']}"}), 200
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
