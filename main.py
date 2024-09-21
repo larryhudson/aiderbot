@@ -283,8 +283,12 @@ def create_pull_request_for_issue(owner, repo_name, issue):
         files_list = extract_files_list_from_issue(issue['body'])
         logger.info(f"Extracted files list from issue: {files_list}")
 
+        # Prepare the prompt
+        prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue['title']}\n\nIssue Body: {issue['body']}"
+        logger.info("Prepared prompt for coding request")
+
         logger.info("Starting coding request")
-        do_coding_request(issue['title'], issue['body'], files_list, repo_dir)
+        do_coding_request(prompt, files_list, repo_dir)
         logger.info("Coding request completed")
 
         changed_file_paths = get_changed_file_paths(original_repo_dir, repo_dir)
@@ -559,9 +563,8 @@ def verify_webhook_signature(payload_body, signature_header):
     logger.info(f"Signature verification result: {result}")
     return result
 
-def do_coding_request(issue_title, issue_body, files_list, root_folder_path):
+def do_coding_request(prompt, files_list, root_folder_path):
     logger.info("Starting coding request")
-    logger.info(f"Issue Title: {issue_title}")
     logger.info(f"Files List: {files_list}")
     
     model = Model("claude-3-5-sonnet-20240620")
@@ -569,10 +572,8 @@ def do_coding_request(issue_title, issue_body, files_list, root_folder_path):
     io = InputOutput(yes=True)
     coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, use_git=False)
 
-    coder_prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue_title}\n\nIssue Body: {issue_body}"
-
     logger.info("Running coder with prompt")
-    coder.run(coder_prompt)
+    coder.run(prompt)
     logger.info("Coding request completed")
 
 
