@@ -24,8 +24,12 @@ logger = logging.getLogger(__name__)
 # GitHub App configuration
 GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_here')
 GITHUB_APP_ID = os.getenv('GITHUB_APP_ID')
-GITHUB_PRIVATE_KEY = os.getenv('GITHUB_PRIVATE_KEY')
+GITHUB_PRIVATE_KEY_PATH = os.getenv('GITHUB_PRIVATE_KEY_PATH', 'path/to/your/private-key.pem')
 GITHUB_INSTALLATION_ID = os.getenv('GITHUB_INSTALLATION_ID')
+
+# Read the private key from the PEM file
+with open(GITHUB_PRIVATE_KEY_PATH, 'r') as key_file:
+    GITHUB_PRIVATE_KEY = key_file.read()
 
 def get_github_token():
     now = int(time.time())
