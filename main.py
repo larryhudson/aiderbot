@@ -10,6 +10,8 @@ from dotenv import load_dotenv
 import requests
 import subprocess
 import base64
+import jwt
+import time
 
 load_dotenv()
 
@@ -26,23 +28,50 @@ GITHUB_PRIVATE_KEY = os.getenv('GITHUB_PRIVATE_KEY')
 GITHUB_INSTALLATION_ID = os.getenv('GITHUB_INSTALLATION_ID')
 
 def get_github_token():
-    # Implement GitHub App authentication to get an access token
-    # This is a placeholder and needs to be implemented
-    return "github_token"
+    now = int(time.time())
+    payload = {
+        'iat': now,
+        'exp': now + (10 * 60),  # JWT expiration time (10 minute maximum)
+        'iss': GITHUB_APP_ID
+    }
+    
+    # Create JWT
+    jwt_token = jwt.encode(payload, GITHUB_PRIVATE_KEY, algorithm='RS256')
+    
+    # Get an installation access token
+    headers = {
+        'Authorization': f'Bearer {jwt_token}',
+        'Accept': 'application/vnd.github.v3+json'
+    }
+    response = requests.post(
+        f'https://api.github.com/app/installations/{GITHUB_INSTALLATION_ID}/access_tokens',
+        headers=headers
+    )
+    
+    if response.status_code == 201:
+        return response.json()['token']
+    else:
+        logger.error(f"Failed to get GitHub token: {response.text}")
+        return None
 
 def fetch_repository_contents(owner, repo, path, ref='main'):
     token = get_github_token()
+    if not token:
+        logger.error("Failed to get GitHub token")
+        return None
+    
     url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
     headers = {
         "Authorization": f"token {token}",
         "Accept": "application/vnd.github.v3+json"
     }
     params = {"ref": ref}
-    response = requests.get(url, headers=headers, params=params)
-    if response.status_code == 200:
+    try:
+        response = requests.get(url, headers=headers, params=params)
+        response.raise_for_status()
         return response.json()
-    else:
-        logger.error(f"Failed to fetch repository contents: {response.text}")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Failed to fetch repository contents: {e}")
         return None
 
 def create_branch(owner, repo, branch_name, sha):
