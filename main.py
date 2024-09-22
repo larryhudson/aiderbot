@@ -117,9 +117,18 @@ def checkout_new_branch(repo_dir, branch_name):
 
 def push_changes_to_repository(temp_dir, branch, set_upstream=False):
     try:
-        push_command_args = ['git', 'push', 'origin', branch]
-        if set_upstream:
+        # First, fetch the latest changes from the remote
+        subprocess.run(['git', 'fetch', 'origin'], cwd=temp_dir, check=True)
+        
+        # Check if the branch exists on the remote
+        remote_branch_exists = subprocess.run(['git', 'ls-remote', '--exit-code', '--heads', 'origin', branch], 
+                                              cwd=temp_dir, capture_output=True).returncode == 0
+
+        push_command_args = ['git', 'push']
+        if set_upstream or not remote_branch_exists:
             push_command_args += ['--set-upstream', 'origin', branch]
+        else:
+            push_command_args += ['origin', branch]
 
         subprocess.run(push_command_args, cwd=temp_dir, check=True)
         
@@ -127,6 +136,7 @@ def push_changes_to_repository(temp_dir, branch, set_upstream=False):
         return True
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to push changes to branch {branch}: {e}")
+        logger.error(f"Command output: {e.output.decode() if e.output else 'No output'}")
         return False
 
 def create_branch(owner, repo, branch_name, sha):
