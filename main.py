@@ -1,20 +1,18 @@
-from aider.repo import GitRepo
+from dotenv import load_dotenv
+load_dotenv()
+
 from flask import Flask, request, jsonify
 import hmac
 import hashlib
 import re
 import os
 import logging
-from dotenv import load_dotenv
-import subprocess
 import tempfile
 import shutil
-from aider.coders import Coder
-from aider.models import Model
-from aider.io import InputOutput
-from github_api import *
+import github_api
+import git_commands
+import aider_coder
 
-load_dotenv()
 
 app = Flask(__name__)
 
@@ -33,54 +31,7 @@ logger = logging.getLogger(__name__)
 GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_here')
 APP_USER_NAME = "larryhudson-aider-github[bot]"
 
-def clone_repository(temp_dir, owner, repo, branch='main'):
-    token = get_github_token()
-    if not token:
-        logger.error("Failed to get GitHub token")
-        return None
-
-    clone_url = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
-
-    # clone the repo into the temp_dir
-    subprocess.run(['git', 'clone', clone_url, temp_dir], check=True)
-    subprocess.run(['git', 'checkout', branch], cwd=temp_dir, check=True)
-
-    return temp_dir
-
-def checkout_new_branch(repo_dir, branch_name):
-    try:
-        subprocess.run(['git', 'checkout', '-b', branch_name], cwd=repo_dir, check=True)
-        return True
-    except:
-        logger.error(f"Failed to checkout new branch: {branch_name}")
-        return False
-
-def push_changes_to_repository(temp_dir, branch):
-    try:
-        # First, fetch the latest changes from the remote
-        subprocess.run(['git', 'fetch', 'origin'], cwd=temp_dir, check=True)
-        
-        # Check if the branch exists on the remote
-        remote_branch_exists = subprocess.run(['git', 'ls-remote', '--exit-code', '--heads', 'origin', branch], 
-                                              cwd=temp_dir, capture_output=True).returncode == 0
-
-        push_command_args = ['git', 'push']
-        if not remote_branch_exists:
-            push_command_args += ['--set-upstream', 'origin', branch]
-        else:
-            push_command_args += ['origin', branch]
-
-        subprocess.run(push_command_args, cwd=temp_dir, check=True)
-        
-        logger.info(f"Pushed changes to branch {branch}")
-        return True
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to push changes to branch {branch}: {e}")
-        logger.error(f"Command output: {e.output.decode() if e.output else 'No output'}")
-        return False
-
-
-def create_pull_request_for_issue(owner, repo_name, issue):
+def create_pull_request_for_issue(token, owner, repo_name, issue):
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
 
     # Create a temporary directory within the current working directory
@@ -88,31 +39,26 @@ def create_pull_request_for_issue(owner, repo_name, issue):
     logger.info(f"Created temporary directory: {temp_dir}")
 
     try:
-        eyes_reaction_id = create_issue_reaction(owner, repo_name, issue['number'], "eyes")
+        eyes_reaction_id = github_api.create_issue_reaction(token, owner, repo_name, issue['number'], "eyes")
 
-        repo_dir = clone_repository(temp_dir, owner, repo_name)
-        logger.info(f"Repository extracted to {repo_dir}")
+        repo_dir = git_commands.clone_repository(token, temp_dir, owner, repo_name)
 
         branch_name = f"fix-issue-{issue['number']}"
-        checkout_new_branch(repo_dir, branch_name)
+        git_commands.checkout_new_branch(repo_dir, branch_name)
 
         files_list = extract_files_list_from_issue(issue['body'])
-        logger.info(f"Extracted files list from issue: {files_list}")
 
         # Prepare the prompt
-        prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue['title']}\n\nIssue Body: {issue['body']}"
-        logger.info("Prepared prompt for coding request")
+        issue_pr_prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue['title']}\n\nIssue Body: {issue['body']}"
 
-        logger.info("Starting coding request")
-        coding_result = do_coding_request(prompt, files_list, repo_dir)
-        logger.info("Coding request completed")
+        coding_result = aider_coder.do_coding_request(issue_pr_prompt, files_list, repo_dir)
 
         main_branch = get_default_branch(owner, repo_name)
 
-        push_changes_to_repository(temp_dir, branch_name)
+        git_commands.push_changes_to_repository(temp_dir, branch_name)
 
-        logger.info("Creating pull request")
-        pr = create_pull_request(
+        pr = github_api.create_pull_request(
+            token,
             owner,
             repo_name,
             f"Fix issue #{issue['number']}: {coding_result['commit_message']}",
@@ -128,16 +74,11 @@ def create_pull_request_for_issue(owner, repo_name, issue):
 
         comment_body = f"I've created a pull request to address this issue: {pr['html_url']}"
         logger.info("Adding comment to the issue")
-        comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
-        delete_issue_reaction(owner, repo_name, issue['number'], eyes_reaction_id)
-        create_issue_reaction(owner, repo_name, issue['number'], "rocket")
+        github_api.create_issue_comment(token, owner, repo_name, issue['number'], comment_body)
+        github_api.delete_issue_reaction(token, owner, repo_name, issue['number'], eyes_reaction_id)
+        github_api.create_issue_reaction(token, owner, repo_name, issue['number'], "rocket")
 
-        if comment:
-            logger.info("Comment added successfully")
-            return {"message": f"Pull request created and issue commented: {pr['html_url']}"}, 200
-        else:
-            logger.warning("Failed to add comment to the issue")
-            return {"message": f"Pull request created, but failed to comment on issue: {pr['html_url']}"}, 200
+        return {"message": f"Pull request created and issue commented: {pr['html_url']}"}, 200
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
@@ -150,7 +91,7 @@ def create_pull_request_for_issue(owner, repo_name, issue):
         shutil.rmtree(temp_dir)
         logger.info(f"Cleaned up temporary directory: {temp_dir}")
 
-def handle_pr_review_comment(owner, repo_name, pull_request, comment):
+def handle_pr_review_comment(token, owner, repo_name, pull_request, comment):
     logger.info(f"Processing PR review comment for PR #{pull_request['number']} in {owner}/{repo_name}")
 
     # Check if the comment is from the app user
@@ -159,7 +100,7 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
         return {"message": "Comment from app user ignored"}, 200
 
     pr_review_comment_id = comment['id']
-    eyes_reaction_id = create_pr_review_comment_reaction(owner, repo_name, pr_review_comment_id, "eyes")
+    eyes_reaction_id = github_api.create_pr_review_comment_reaction(token, owner, repo_name, pr_review_comment_id, "eyes")
 
     if 'LGTM' in comment['body']:
         logger.info("Comment contains 'LGTM', no action needed")
@@ -169,63 +110,37 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
         # Get the original issue
         issue_number = extract_issue_number_from_pr_title(pull_request['title'])
         logger.info(f"Extracted issue number: {issue_number}")
-        if not issue_number:
-            logger.error("Failed to extract issue number from PR title")
-            return {"error": "Failed to extract issue number from PR title"}, 500
 
-        issue = get_issue(owner, repo_name, issue_number)
+        issue = github_api.get_issue(token, owner, repo_name, issue_number)
         logger.info(f"Retrieved issue: {issue['number'] if issue else None}")
-        if not issue:
-            logger.error(f"Failed to get issue #{issue_number}")
-            return {"error": f"Failed to get issue #{issue_number}"}, 500
 
         # Get the PR diff
-        pr_diff = get_pr_diff(owner, repo_name, pull_request['number'])
+        pr_diff = github_api.get_pr_diff(token, owner, repo_name, pull_request['number'])
         logger.info(f"Retrieved PR diff: {'Success' if pr_diff else 'Failed'}")
-        if not pr_diff:
-            logger.error("Failed to get PR diff")
-            return {"error": "Failed to get PR diff"}, 500
 
         # Build the prompt
-        prompt = build_pr_review_prompt(issue, pr_diff, comment['body'])
-        logger.info("Built prompt for coding request")
+        prompt = aider_coder.build_pr_review_prompt(issue, pr_diff, comment['body'])
 
         # Create a temporary directory
         temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
-        logger.info(f"Created temporary directory: {temp_dir}")
-
-        repo_dir = clone_repository(temp_dir, owner, repo_name, pull_request['head']['ref'])
-        if not repo_dir:
-            logger.error("Failed to clone repository")
-            return {"error": "Failed to clone repository"}, 500
+        repo_dir = git_commands.clone_repository(token, temp_dir, owner, repo_name, pull_request['head']['ref'])
 
         # Get the list of files changed in the PR
-        changed_pr_files = get_pr_changed_files(owner, repo_name, pull_request['number'])
-        logger.info(f"Files changed in PR: {changed_pr_files}")
-
+        changed_pr_files = github_api.get_pr_changed_files(token, owner, repo_name, pull_request['number'])
         mentioned_files = extract_files_list_from_issue(comment['body'])
-        logger.info(f"Files mentioned in comment: {mentioned_files}")
 
         files_list = list(set(changed_pr_files + mentioned_files))
-        logger.info(f"Combined files list: {files_list}")
 
-        # Do the coding request
-        logger.info("Starting coding request")
-        coding_result = do_coding_request(prompt, files_list, repo_dir)
-        logger.info("Completed coding request")
+        coding_result = aider_coder.do_coding_request(prompt, files_list, repo_dir)
 
-        push_changes_to_repository(temp_dir, pull_request['head']['ref'])
+        git_commands.push_changes_to_repository(temp_dir, pull_request['head']['ref'])
 
         pr_comment_body = f"I've updated the PR based on the review comment.\n\n{coding_result['summary']}"
 
-        pr_comment = reply_to_pr_review_comment(owner, repo_name, pull_request['number'], pr_review_comment_id, pr_comment_body)
-        if not pr_comment:
-            logger.warning("Failed to add comment to the PR")
-        else:
-            logger.info("Added comment to PR successfully")
+        github_api.reply_to_pr_review_comment(token, owner, repo_name, pull_request['number'], pr_review_comment_id, pr_comment_body)
 
-        delete_pr_review_comment_reaction(owner, repo_name, pr_review_comment_id, eyes_reaction_id)
-        create_pr_review_comment_reaction(owner, repo_name, pr_review_comment_id, "rocket")
+        github_api.delete_pr_review_comment_reaction(token, owner, repo_name, pr_review_comment_id, eyes_reaction_id)
+        github_api.create_pr_review_comment_reaction(token, owner, repo_name, pr_review_comment_id, "rocket")
 
         return {"message": "PR updated based on review comment", "commit_message": coding_result['commit_message']}, 200
 
@@ -244,22 +159,6 @@ def extract_issue_number_from_pr_title(title):
     match = re.search(r'#(\d+)', title)
     return int(match.group(1)) if match else None
 
-def build_pr_review_prompt(issue, pr_diff, review_comment):
-    return f"""
-Please help me address the following review comment on a pull request:
-
-Original Issue:
-Title: {issue['title']}
-Body: {issue['body']}
-
-Here is the original diff for the pull request:
-{pr_diff}
-
-Here is the review comment:
-{review_comment}
-
-Please make changes to address this review comment.
-"""
 
 def extract_files_list_from_issue(issue_body):
     files_list = []
@@ -279,54 +178,14 @@ def extract_files_list_from_issue(issue_body):
 
 def verify_webhook_signature(payload_body, signature_header):
     """Verify that the payload was sent from GitHub by validating SHA256."""
-    logger.info("Verifying webhook signature")
     if not signature_header:
         logger.warning("No signature header provided")
         return False
     hash_object = hmac.new(GITHUB_WEBHOOK_SECRET.encode('utf-8'), msg=payload_body, digestmod=hashlib.sha256)
     expected_signature = "sha256=" + hash_object.hexdigest()
     result = hmac.compare_digest(expected_signature, signature_header)
-    logger.info(f"Signature verification result: {result}")
     return result
 
-def do_coding_request(prompt, files_list, root_folder_path):
-    logger.info("Starting coding request")
-    logger.info(f"Files List: {files_list}")
-    
-    model = Model("claude-3-5-sonnet-20240620")
-    full_file_paths = [os.path.join(root_folder_path, file) for file in files_list]
-    io = InputOutput(yes=True)
-    git_repo = GitRepo(io, full_file_paths, root_folder_path, models=model.commit_message_models())
-    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False)
-
-    logger.info("Running coder with prompt")
-    try:
-        summary = coder.run(prompt)
-        logger.info("Coding request completed")
-    except Exception as e:
-        logger.error(f"Error during coding request: {str(e)}")
-        import traceback
-        logger.error(f"Full traceback:\n{traceback.format_exc()}")
-        raise  # Re-raise the exception to be caught by the outer try-except block
-
-    # Get the list of changed files in the last commit
-    changed_files = subprocess.check_output(['git', 'diff', '--name-only', 'HEAD~1'], cwd=root_folder_path).decode('utf-8').splitlines()
-    if not changed_files:
-        # If no changes detected, get all files tracked by git
-        changed_files = subprocess.check_output(['git', 'ls-files'], cwd=root_folder_path).decode('utf-8').splitlines()
-    logger.info(f"Changed files: {changed_files}")
-
-    # Get the last commit message
-    commit_message = subprocess.check_output(['git', 'log', '-1', '--pretty=%B'], cwd=root_folder_path).decode('utf-8').strip()
-    if not commit_message:
-        commit_message = "Update files based on the latest request"
-    logger.info(f"Commit message: {commit_message}")
-
-    return {
-        'changed_files': changed_files,
-        'commit_message': commit_message,
-        'summary': summary
-    }
 
 @app.route('/', methods=['GET'])
 def index():
@@ -338,9 +197,6 @@ def webhook():
         signature = request.headers.get('X-Hub-Signature-256')
         payload = request.data
 
-        logger.info(f"Received webhook with signature: {signature}")
-        logger.info(f"Payload: {payload.decode('utf-8')}")
-
         if not verify_webhook_signature(payload, signature):
             logger.warning("Webhook signature verification failed")
             return jsonify({"error": "Request signatures didn't match!"}), 403
@@ -350,8 +206,8 @@ def webhook():
         event = request.headers.get('X-GitHub-Event')
         data = request.json
 
-        logger.info(f"GitHub event: {event}")
-        logger.info(f"Action: {data.get('action')}")
+        if not event or not data:
+            return jsonify({"error": "Invalid payload"}), 400
 
         if event == 'issues' and data['action'] == 'opened':
             issue = data['issue']
@@ -359,7 +215,9 @@ def webhook():
             owner = repo['owner']['login']
             repo_name = repo['name']
 
-            result, status_code = create_pull_request_for_issue(owner, repo_name, issue)
+            token = github_api.get_github_token()
+
+            result, status_code = create_pull_request_for_issue(token, owner, repo_name, issue)
             return jsonify(result), status_code
         elif event == 'pull_request_review_comment' and data['action'] == 'created':
             comment = data['comment']
@@ -368,7 +226,9 @@ def webhook():
             owner = repo['owner']['login']
             repo_name = repo['name']
 
-            result, status_code = handle_pr_review_comment(owner, repo_name, pull_request, comment)
+            token = github_api.get_github_token()
+
+            result, status_code = handle_pr_review_comment(token, owner, repo_name, pull_request, comment)
             return jsonify(result), status_code
         else:
             logger.info("Event is not handled, ignoring")

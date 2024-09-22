@@ -64,8 +64,7 @@ def get_github_token():
     
     return None
 
-def create_branch(owner, repo, branch_name, sha):
-    token = get_github_token()
+def create_branch(token, owner, repo, branch_name, sha):
     url = f"https://api.github.com/repos/{owner}/{repo}/git/refs"
     headers = {
         "Authorization": f"token {token}",
@@ -82,8 +81,7 @@ def create_branch(owner, repo, branch_name, sha):
         logger.error(f"Failed to create branch: {response.text}")
         return None
 
-def create_pull_request(owner, repo, title, body, head, base):
-    token = get_github_token()
+def create_pull_request(token, owner, repo, title, body, head, base):
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
     headers = {
         "Authorization": f"token {token}",
@@ -102,8 +100,7 @@ def create_pull_request(owner, repo, title, body, head, base):
         logger.error(f"Failed to create pull request: {response.text}")
         return None
 
-def create_issue_comment(owner, repo, issue_number, body):
-    token = get_github_token()
+def create_issue_comment(token, owner, repo, issue_number, body):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
     headers = {
         "Authorization": f"token {token}",
@@ -119,8 +116,7 @@ def create_issue_comment(owner, repo, issue_number, body):
         logger.error(f"Failed to create issue comment: {response.text}")
         return None
 
-def create_issue_reaction(owner, repo, issue_number, reaction):
-    token = get_github_token()
+def create_issue_reaction(token, owner, repo, issue_number, reaction):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions"
     headers = {
         "Authorization": f"token {token}",
@@ -142,8 +138,7 @@ def create_issue_reaction(owner, repo, issue_number, reaction):
         logger.error(f"Failed to create issue reaction: {response.text}")
         return response.json()
 
-def delete_issue_reaction(owner, repo, issue_number, reaction_id):
-    token = get_github_token()
+def delete_issue_reaction(token, owner, repo, issue_number, reaction_id):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}"
     headers = {
         "Authorization": f"token {token}",
@@ -157,8 +152,7 @@ def delete_issue_reaction(owner, repo, issue_number, reaction_id):
         logger.error(f"Failed to delete issue reaction: {response.text}")
         return False
 
-def create_pr_review_comment_reaction(owner, repo, comment_id, reaction):
-    token = get_github_token()
+def create_pr_review_comment_reaction(token, owner, repo, comment_id, reaction):
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"
     headers = {
         "Authorization": f"token {token}",
@@ -174,8 +168,7 @@ def create_pr_review_comment_reaction(owner, repo, comment_id, reaction):
         logger.error(f"Failed to create PR review comment reaction: {response.text}")
         return None
 
-def delete_pr_review_comment_reaction(owner, repo, comment_id, reaction_id):
-    token = get_github_token()
+def delete_pr_review_comment_reaction(token, owner, repo, comment_id, reaction_id):
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions/{reaction_id}"
     headers = {
         "Authorization": f"token {token}",
@@ -189,8 +182,7 @@ def delete_pr_review_comment_reaction(owner, repo, comment_id, reaction_id):
         logger.error(f"Failed to delete PR review comment reaction: {response.text}")
         return False
 
-def get_issue(owner, repo, issue_number):
-    token = get_github_token()
+def get_issue(token, owner, repo, issue_number):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
     headers = {
         "Authorization": f"token {token}",
@@ -203,8 +195,7 @@ def get_issue(owner, repo, issue_number):
         logger.error(f"Failed to get issue: {response.text}")
         return None
 
-def get_pr_diff(owner, repo, pr_number):
-    token = get_github_token()
+def get_pr_diff(token, owner, repo, pr_number):
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
     headers = {
         "Authorization": f"token {token}",
@@ -217,8 +208,7 @@ def get_pr_diff(owner, repo, pr_number):
         logger.error(f"Failed to get PR diff: {response.text}")
         return None
 
-def get_pr_changed_files(owner, repo, pr_number):
-    token = get_github_token()
+def get_pr_changed_files(token, owner, repo, pr_number):
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files"
     headers = {
         "Authorization": f"token {token}",
@@ -231,8 +221,7 @@ def get_pr_changed_files(owner, repo, pr_number):
         logger.error(f"Failed to get PR changed files: {response.text}")
         return []
 
-def create_pr_comment(owner, repo, pr_number, body):
-    token = get_github_token()
+def create_pr_comment(token, owner, repo, pr_number, body):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments"
     headers = {
         "Authorization": f"token {token}",
@@ -248,8 +237,7 @@ def create_pr_comment(owner, repo, pr_number, body):
         logger.error(f"Failed to create PR comment: {response.text}")
         return None
 
-def reply_to_pr_review_comment(owner, repo, pr_number, pr_review_comment_id, body):
-    token = get_github_token()
+def reply_to_pr_review_comment(token, owner, repo, pr_number, pr_review_comment_id, body):
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/comments"
 
     headers = {
