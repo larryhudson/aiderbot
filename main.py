@@ -3,27 +3,16 @@ from flask import Flask, request, jsonify
 import hmac
 import hashlib
 import re
-from flask import Flask, request, jsonify
-import hmac
-import hashlib
 import os
 import logging
 from dotenv import load_dotenv
-import requests
 import subprocess
-import json
-import base64
-import jwt
-import time
-import zipfile
-import io
 import tempfile
 import shutil
-import filecmp
-import uuid
 from aider.coders import Coder
 from aider.models import Model
 from aider.io import InputOutput
+from github_api import *
 
 load_dotenv()
 
@@ -42,56 +31,9 @@ logger = logging.getLogger(__name__)
 
 # GitHub App configuration
 GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_here')
-GITHUB_APP_ID = os.getenv('GITHUB_APP_ID')
-GITHUB_PRIVATE_KEY_PATH = os.getenv('GITHUB_PRIVATE_KEY_PATH', 'path/to/your/private-key.pem')
-GITHUB_INSTALLATION_ID = os.getenv('GITHUB_INSTALLATION_ID')
 APP_USER_NAME = "larryhudson-aider-github[bot]"
 
-# Read the private key from the PEM file
-with open(GITHUB_PRIVATE_KEY_PATH, 'r') as key_file:
-    GITHUB_PRIVATE_KEY = key_file.read()
-
-def get_github_token():
-    try:
-        # Open PEM file and read the signing key
-        with open(GITHUB_PRIVATE_KEY_PATH, 'rb') as pem_file:
-            signing_key = pem_file.read()
-
-        payload = {
-            'iat': int(time.time()),
-            'exp': int(time.time()) + 600,  # JWT expiration time (10 minutes maximum)
-            'iss': GITHUB_APP_ID
-        }
-
-        # Create JWT
-        jwt_token = jwt.encode(payload, signing_key, algorithm='RS256')
-
-        # Get an installation access token
-        headers = {
-            'Authorization': f'Bearer {jwt_token}',
-            'Accept': 'application/vnd.github.v3+json'
-        }
-        response = requests.post(
-            f'https://api.github.com/app/installations/{GITHUB_INSTALLATION_ID}/access_tokens',
-            headers=headers
-        )
-
-        response.raise_for_status()
-        return response.json()['token']
-    except FileNotFoundError:
-        logger.error(f"Private key file not found: {GITHUB_PRIVATE_KEY_PATH}")
-    except jwt.PyJWTError as e:
-        logger.error(f"JWT encoding failed: {str(e)}")
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to get GitHub token: {str(e)}")
-    except KeyError:
-        logger.error("Unexpected response format from GitHub API")
-    except Exception as e:
-        logger.error(f"Unexpected error in get_github_token: {str(e)}")
-    
-    return None
-
-def clone_repository(temp_dir, owner, repo, branch='main', ):
+def clone_repository(temp_dir, owner, repo, branch='main'):
     token = get_github_token()
     if not token:
         logger.error("Failed to get GitHub token")
@@ -112,7 +54,6 @@ def checkout_new_branch(repo_dir, branch_name):
     except:
         logger.error(f"Failed to checkout new branch: {branch_name}")
         return False
-
 
 def push_changes_to_repository(temp_dir, branch):
     try:
@@ -136,131 +77,6 @@ def push_changes_to_repository(temp_dir, branch):
     except subprocess.CalledProcessError as e:
         logger.error(f"Failed to push changes to branch {branch}: {e}")
         logger.error(f"Command output: {e.output.decode() if e.output else 'No output'}")
-        return False
-
-def create_branch(owner, repo, branch_name, sha):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/git/refs"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    data = {
-        "ref": f"refs/heads/{branch_name}",
-        "sha": sha
-    }
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 201:
-        return response.json()
-    else:
-        logger.error(f"Failed to create branch: {response.text}")
-        return None
-
-def create_pull_request(owner, repo, title, body, head, base):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    data = {
-        "title": title,
-        "body": body,
-        "head": head,
-        "base": base
-    }
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 201:
-        return response.json()
-    else:
-        logger.error(f"Failed to create pull request: {response.text}")
-        return None
-
-def create_issue_comment(owner, repo, issue_number, body):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    data = {
-        "body": body
-    }
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 201:
-        return response.json()
-    else:
-        logger.error(f"Failed to create issue comment: {response.text}")
-        return None
-
-def create_issue_reaction(owner, repo, issue_number, reaction):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json"
-    }
-
-    data = {
-        "content": reaction
-    }
-
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 201:
-        reaction_id = response.json()['id']
-        return reaction_id
-    elif response.status_code == 200:
-        reaction_id = response.json()['id']
-        return reaction_id
-    elif response.status_code == 422:
-        logger.error(f"Failed to create issue reaction: {response.text}")
-        return response.json()
-
-def delete_issue_reaction(owner, repo, issue_number, reaction_id):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json"
-    }
-
-    response = requests.delete(url, headers=headers)
-    if response.status_code == 204:
-        return True
-    else:
-        logger.error(f"Failed to delete issue reaction: {response.text}")
-        return False
-
-def create_pr_review_comment_reaction(owner, repo, comment_id, reaction):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    data = {
-        "content": reaction
-    }
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 201:
-        return response.json()
-    else:
-        logger.error(f"Failed to create PR review comment reaction: {response.text}")
-        return None
-
-def delete_pr_review_comment_reaction(owner, repo, comment_id, reaction_id):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions/{reaction_id}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json"
-    }
-
-    response = requests.delete(url, headers=headers)
-    if response.status_code == 204:
-        return True
-    else:
-        logger.error(f"Failed to delete PR review comment reaction: {response.text}")
         return False
 
 
@@ -291,7 +107,7 @@ def create_pull_request_for_issue(owner, repo_name, issue):
         coding_result = do_coding_request(prompt, files_list, repo_dir)
         logger.info("Coding request completed")
 
-        main_branch = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}").json()['default_branch']
+        main_branch = get_default_branch(owner, repo_name)
 
         push_changes_to_repository(temp_dir, branch_name)
 
@@ -428,34 +244,6 @@ def extract_issue_number_from_pr_title(title):
     match = re.search(r'#(\d+)', title)
     return int(match.group(1)) if match else None
 
-def get_issue(owner, repo, issue_number):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()
-    else:
-        logger.error(f"Failed to get issue: {response.text}")
-        return None
-
-def get_pr_diff(owner, repo, pr_number):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3.diff"
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.text
-    else:
-        logger.error(f"Failed to get PR diff: {response.text}")
-        return None
-
 def build_pr_review_prompt(issue, pr_diff, review_comment):
     return f"""
 Please help me address the following review comment on a pull request:
@@ -472,58 +260,6 @@ Here is the review comment:
 
 Please make changes to address this review comment.
 """
-
-def get_pr_changed_files(owner, repo, pr_number):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return [file['filename'] for file in response.json()]
-    else:
-        logger.error(f"Failed to get PR changed files: {response.text}")
-        return []
-
-def create_pr_comment(owner, repo, pr_number, body):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    data = {
-        "body": body
-    }
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 201:
-        return response.json()
-    else:
-        logger.error(f"Failed to create PR comment: {response.text}")
-        return None
-
-def reply_to_pr_review_comment(owner, repo, pr_number, pr_review_comment_id, body):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/comments"
-
-    headers = {
-            "Authorization": f"token {token}",
-            "Accept": "application/vnd.github.v3+json"
-    }
-
-    data = {
-        "body": body,
-        "in_reply_to": pr_review_comment_id
-    }
-
-    response = requests.post(url, headers=headers, json=data)
-    if response.status_code == 201:
-        return response.json()
-    else:
-        logger.error(f"Failed to reply to PR review comment: {response.text}")
-        return None
 
 def extract_files_list_from_issue(issue_body):
     files_list = []
@@ -565,12 +301,8 @@ def do_coding_request(prompt, files_list, root_folder_path):
 
     logger.info("Running coder with prompt")
     try:
-        summary =coder.run(prompt)
+        summary = coder.run(prompt)
         logger.info("Coding request completed")
-
-        # summary_prompt = "/ask Thank you. Please provide a summary of the changes you just made."
-        # summary = coder.run(summary_prompt)
-        # logger.info("Summary generated successfully")
     except Exception as e:
         logger.error(f"Error during coding request: {str(e)}")
         import traceback
@@ -585,24 +317,16 @@ def do_coding_request(prompt, files_list, root_folder_path):
     logger.info(f"Changed files: {changed_files}")
 
     # Get the last commit message
-    commit_message = subprocess.check_output(['git', 'log', '-1',
- '--pretty=%B'], cwd=root_folder_path).decode('utf-8').strip()
+    commit_message = subprocess.check_output(['git', 'log', '-1', '--pretty=%B'], cwd=root_folder_path).decode('utf-8').strip()
     if not commit_message:
         commit_message = "Update files based on the latest request"
     logger.info(f"Commit message: {commit_message}")
-
-    # Make a commit if there are changes
-    # if changed_files:
-    #     subprocess.run(['git', 'add', '-A'], cwd=root_folder_path, check=True)
-    #     subprocess.run(['git', 'commit', '-m', commit_message], cwd=root_folder_path, check=True)
-    #     logger.info("Changes committed")
 
     return {
         'changed_files': changed_files,
         'commit_message': commit_message,
         'summary': summary
     }
-
 
 @app.route('/', methods=['GET'])
 def index():
