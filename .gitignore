@@ -166,3 +166,6 @@ Session.vim
 
 # GitHub private key pem file
 *.pem
+
+# Temporary repo folders
+repo_*/
