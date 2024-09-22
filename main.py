@@ -100,8 +100,6 @@ def clone_repository(temp_dir, owner, repo, branch='main', ):
 
     # clone the repo into the temp_dir
     subprocess.run(['git', 'clone', clone_url, temp_dir], check=True)
-
-    # checkout the branch
     subprocess.run(['git', 'checkout', branch], cwd=temp_dir, check=True)
 
     return temp_dir
@@ -115,7 +113,7 @@ def checkout_new_branch(repo_dir, branch_name):
         return False
 
 
-def push_changes_to_repository(temp_dir, branch, set_upstream=False):
+def push_changes_to_repository(temp_dir, branch):
     try:
         # First, fetch the latest changes from the remote
         subprocess.run(['git', 'fetch', 'origin'], cwd=temp_dir, check=True)
@@ -125,7 +123,7 @@ def push_changes_to_repository(temp_dir, branch, set_upstream=False):
                                               cwd=temp_dir, capture_output=True).returncode == 0
 
         push_command_args = ['git', 'push']
-        if set_upstream or not remote_branch_exists:
+        if not remote_branch_exists:
             push_command_args += ['--set-upstream', 'origin', branch]
         else:
             push_command_args += ['origin', branch]
@@ -194,6 +192,77 @@ def create_issue_comment(owner, repo, issue_number, body):
         logger.error(f"Failed to create issue comment: {response.text}")
         return None
 
+def create_issue_reaction(owner, repo, issue_number, reaction):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json"
+    }
+
+    data = {
+        "content": reaction
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 201:
+        reaction_id = response.json()['id']
+        return reaction_id
+    elif response.status_code == 200:
+        reaction_id = response.json()['id']
+        return reaction_id
+    elif response.status_code == 422:
+        logger.error(f"Failed to create issue reaction: {response.text}")
+        return response.json()
+
+def delete_issue_reaction(owner, repo, issue_number, reaction_id):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json"
+    }
+
+    response = requests.delete(url, headers=headers)
+    if response.status_code == 204:
+        return True
+    else:
+        logger.error(f"Failed to delete issue reaction: {response.text}")
+        return False
+
+def create_pr_review_comment_reaction(owner, repo, comment_id, reaction):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    data = {
+        "body": reaction
+    }
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 201:
+        return response.json()
+    else:
+        logger.error(f"Failed to create PR review comment reaction: {response.text}")
+        return None
+
+def delete_pr_review_comment_reaction(owner, repo, comment_id, reaction_id):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions/{reaction_id}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github+json"
+    }
+
+    response = requests.delete(url, headers=headers)
+    if response.status_code == 204:
+        return True
+    else:
+        logger.error(f"Failed to delete PR review comment reaction: {response.text}")
+        return False
+
+
 def create_pull_request_for_issue(owner, repo_name, issue):
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
 
@@ -202,6 +271,8 @@ def create_pull_request_for_issue(owner, repo_name, issue):
     logger.info(f"Created temporary directory: {temp_dir}")
 
     try:
+        eyes_reaction_id = create_issue_reaction(owner, repo_name, issue['number'], "eyes")
+
         repo_dir = clone_repository(temp_dir, owner, repo_name)
         logger.info(f"Repository extracted to {repo_dir}")
 
@@ -220,16 +291,8 @@ def create_pull_request_for_issue(owner, repo_name, issue):
         logger.info("Coding request completed")
 
         main_branch = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}").json()['default_branch']
-        # main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
-        
-        # logger.info(f"Creating new branch: {branch_name}")
-        # new_branch = create_branch(owner, repo_name, branch_name, main_sha)
-        # if not new_branch:
-        #     logger.error("Failed to create new branch")
-        #     return {"error": "Failed to create new branch"}, 500
 
-        push_changes_to_repository(temp_dir, branch_name, set_upstream=True)
-
+        push_changes_to_repository(temp_dir, branch_name)
 
         logger.info("Creating pull request")
         pr = create_pull_request(
@@ -249,6 +312,8 @@ def create_pull_request_for_issue(owner, repo_name, issue):
         comment_body = f"I've created a pull request to address this issue: {pr['html_url']}"
         logger.info("Adding comment to the issue")
         comment = create_issue_comment(owner, repo_name, issue['number'], comment_body)
+        delete_issue_reaction(owner, repo_name, issue['number'], eyes_reaction_id)
+        create_issue_reaction(owner, repo_name, issue['number'], "rocket")
 
         if comment:
             logger.info("Comment added successfully")
@@ -270,6 +335,9 @@ def create_pull_request_for_issue(owner, repo_name, issue):
 
 def handle_pr_review_comment(owner, repo_name, pull_request, comment):
     logger.info(f"Processing PR review comment for PR #{pull_request['number']} in {owner}/{repo_name}")
+
+    pr_review_comment_id = comment['id']
+    eyes_reaction_id = create_pr_review_comment_reaction(owner, repo_name, pr_review_comment_id, "eyes")
 
     if 'LGTM' in comment['body']:
         logger.info("Comment contains 'LGTM', no action needed")
@@ -297,18 +365,12 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
             return {"error": "Failed to get PR diff"}, 500
 
         # Build the prompt
-        prompt = build_prompt(issue, pr_diff, comment['body'])
+        prompt = build_pr_review_prompt(issue, pr_diff, comment['body'])
         logger.info("Built prompt for coding request")
 
         # Create a temporary directory
         temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
         logger.info(f"Created temporary directory: {temp_dir}")
-
-        # Check if pull_request['head']['ref'] is set
-        if 'head' not in pull_request or 'ref' not in pull_request['head']:
-            logger.error("pull_request['head']['ref'] is not set")
-            return {"error": "Invalid pull request data"}, 500
-        logger.info(f"pull_request['head']['ref'] is set to: {pull_request['head']['ref']}")
 
         repo_dir = clone_repository(temp_dir, owner, repo_name, pull_request['head']['ref'])
         if not repo_dir:
@@ -325,11 +387,6 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
         files_list = list(set(changed_pr_files + mentioned_files))
         logger.info(f"Combined files list: {files_list}")
 
-        # Create a copy of the original repository
-        # original_repo_dir = os.path.join(temp_dir, f'original_{uuid.uuid4().hex}')
-        # shutil.copytree(repo_dir, original_repo_dir)
-        # logger.info(f"Created original repository copy at {original_repo_dir}")
-
         # Do the coding request
         logger.info("Starting coding request")
         coding_result = do_coding_request(prompt, files_list, repo_dir)
@@ -337,38 +394,16 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
 
         push_changes_to_repository(temp_dir, pull_request['head']['ref'])
 
-        # changed_file_paths = coding_result['changed_files']
-        # logger.info(f"Files changed after coding request: {changed_file_paths}")
-
-        # # Update the files in the PR branch
-        # for file_path in changed_file_paths:
-        #     logger.info(f"Processing file: {file_path}")
-        #     content = read_file(repo_dir, file_path)
-        #     if not content:
-        #         logger.error(f"Failed to read file {file_path}")
-        #         return {"error": f"Failed to read file {file_path}"}, 500
-        #     logger.info(f"File content read successfully: {file_path}")
-        #     update_result = update_file(
-        #         owner,
-        #         repo_name,
-        #         file_path,
-        #         coding_result['commit_message'],
-        #         content,
-        #         pull_request['head']['ref']
-        #     )
-        #     if not update_result:
-        #         logger.error(f"Failed to update file {file_path}")
-        #         return {"error": f"Failed to update file {file_path}"}, 500
-        #     logger.info(f"File {file_path} updated successfully")
-
         pr_comment_body = f"I've updated the PR based on the review comment.\n\n{coding_result['summary']}"
 
-        # Add a comment to the PR
-        pr_comment = create_pr_comment(owner, repo_name, pull_request['number'], pr_comment_body)
+        pr_comment = reply_to_pr_review_comment(owner, repo_name, pull_request['number'], pr_review_comment_id, pr_comment_body)
         if not pr_comment:
             logger.warning("Failed to add comment to the PR")
         else:
             logger.info("Added comment to PR successfully")
+
+        delete_pr_review_comment_reaction(owner, repo_name, pr_review_comment_id, eyes_reaction_id)
+        create_pr_review_comment_reaction(owner, repo_name, pr_review_comment_id, "rocket")
 
         return {"message": "PR updated based on review comment", "commit_message": coding_result['commit_message']}, 200
 
@@ -415,7 +450,7 @@ def get_pr_diff(owner, repo, pr_number):
         logger.error(f"Failed to get PR diff: {response.text}")
         return None
 
-def build_prompt(issue, pr_diff, review_comment):
+def build_pr_review_prompt(issue, pr_diff, review_comment):
     return f"""
 Please help me address the following review comment on a pull request:
 
@@ -461,6 +496,27 @@ def create_pr_comment(owner, repo, pr_number, body):
         return response.json()
     else:
         logger.error(f"Failed to create PR comment: {response.text}")
+        return None
+
+def reply_to_pr_review_comment(owner, repo, pr_number, pr_review_comment_id, body):
+    token = get_github_token()
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/comments"
+
+    headers = {
+            "Authorization": f"token {token}",
+            "Accept": "application/vnd.github.v3+json"
+    }
+
+    data = {
+        "body": body,
+        "in_reply_to": pr_review_comment_id
+    }
+
+    response = requests.post(url, headers=headers, json=data)
+    if response.status_code == 201:
+        return response.json()
+    else:
+        logger.error(f"Failed to reply to PR review comment: {response.text}")
         return None
 
 def extract_files_list_from_issue(issue_body):
