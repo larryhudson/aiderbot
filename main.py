@@ -54,9 +54,6 @@ def create_pull_request_for_issue(token, owner, repo_name, issue):
         coding_result = aider_coder.do_coding_request(issue_pr_prompt, files_list, repo_dir)
 
         main_branch = github_api.get_default_branch(token, owner, repo_name)
-        if not main_branch:
-            logger.error("Failed to get default branch")
-            return {"error": "Failed to get default branch"}, 500
 
         git_commands.push_changes_to_repository(temp_dir, branch_name)
 
