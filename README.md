@@ -102,4 +102,8 @@ If you run into any problems, check the following:
 - Check that the Smee client is running and forwarding requests
 - Review the Flask dev server logs for any error messages
 
+### Testing and Debugging Tips
+
+- **Smee.io Redeliver Feature**: Within the Smee.io interface, you can use the 'Redeliver' button to resend a payload. This is particularly useful for testing after you've made changes or fixed a bug. Instead of manually creating new issues or PR review comments repeatedly, you can simply click 'Redeliver' to test your latest changes with the same payload.
+
 For more detailed information, refer to the [GitHub Apps documentation](https://docs.github.com/en/developers/apps).
