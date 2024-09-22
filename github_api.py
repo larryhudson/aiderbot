@@ -256,3 +256,16 @@ def reply_to_pr_review_comment(token, owner, repo, pr_number, pr_review_comment_
     else:
         logger.error(f"Failed to reply to PR review comment: {response.text}")
         return None
+
+def get_default_branch(token, owner, repo):
+    url = f"https://api.github.com/repos/{owner}/{repo}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.json()['default_branch']
+    else:
+        logger.error(f"Failed to get default branch: {response.text}")
+        return None
