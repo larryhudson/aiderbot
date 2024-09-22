@@ -202,6 +202,9 @@ def index():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
+        import json
+        logger.info(f"Received webhook payload:\n{json.dumps(request.json, indent=2)}")
+
         signature = request.headers.get('X-Hub-Signature-256')
         payload = request.data
 
