@@ -121,7 +121,7 @@ def push_changes_to_repository(temp_dir, branch, set_upstream=False):
         if set_upstream:
             push_command_args += ['--set-upstream', 'origin', branch]
 
-        subprocess.run(*push_command_args, cwd=temp_dir, check=True)
+        subprocess.run(push_command_args, cwd=temp_dir, check=True)
         
         logger.info(f"Pushed changes to branch {branch}")
         return True
