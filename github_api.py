@@ -18,13 +18,11 @@ logger = logging.getLogger(__name__)
 # GitHub App configuration
 GITHUB_APP_ID = os.getenv('GITHUB_APP_ID')
 GITHUB_PRIVATE_KEY_PATH = os.getenv('GITHUB_PRIVATE_KEY_PATH', 'path/to/your/private-key.pem')
-GITHUB_INSTALLATION_ID = os.getenv('GITHUB_INSTALLATION_ID')
-
 # Read the private key from the PEM file
 with open(GITHUB_PRIVATE_KEY_PATH, 'r') as key_file:
     GITHUB_PRIVATE_KEY = key_file.read()
 
-def get_github_token():
+def get_github_token(installation_id):
     try:
         # Open PEM file and read the signing key
         with open(GITHUB_PRIVATE_KEY_PATH, 'rb') as pem_file:
@@ -45,7 +43,7 @@ def get_github_token():
             'Accept': 'application/vnd.github.v3+json'
         }
         response = requests.post(
-            f'https://api.github.com/app/installations/{GITHUB_INSTALLATION_ID}/access_tokens',
+            f'https://api.github.com/app/installations/{installation_id}/access_tokens',
             headers=headers
         )
 

@@ -31,8 +31,12 @@ logger = logging.getLogger(__name__)
 GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_here')
 APP_USER_NAME = "larryhudson-aider-github[bot]"
 
-def create_pull_request_for_issue(token, owner, repo_name, issue):
+def create_pull_request_for_issue(installation_id, owner, repo_name, issue):
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
+    token = github_api.get_github_token(installation_id)
+    if not token:
+        logger.error("Failed to get GitHub token")
+        return {"error": "Failed to get GitHub token"}, 500
 
     # Create a temporary directory within the current working directory
     temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
@@ -91,8 +95,12 @@ def create_pull_request_for_issue(token, owner, repo_name, issue):
         shutil.rmtree(temp_dir)
         logger.info(f"Cleaned up temporary directory: {temp_dir}")
 
-def handle_pr_review_comment(token, owner, repo_name, pull_request, comment):
+def handle_pr_review_comment(installation_id, owner, repo_name, pull_request, comment):
     logger.info(f"Processing PR review comment for PR #{pull_request['number']} in {owner}/{repo_name}")
+    token = github_api.get_github_token(installation_id)
+    if not token:
+        logger.error("Failed to get GitHub token")
+        return {"error": "Failed to get GitHub token"}, 500
 
     # Check if the comment is from the app user
     if comment['user']['login'] == APP_USER_NAME:
@@ -209,15 +217,15 @@ def webhook():
         if not event or not data:
             return jsonify({"error": "Invalid payload"}), 400
 
+        installation_id = data['installation']['id']
+
         if event == 'issues' and data['action'] == 'opened':
             issue = data['issue']
             repo = data['repository']
             owner = repo['owner']['login']
             repo_name = repo['name']
 
-            token = github_api.get_github_token()
-
-            result, status_code = create_pull_request_for_issue(token, owner, repo_name, issue)
+            result, status_code = create_pull_request_for_issue(installation_id, owner, repo_name, issue)
             return jsonify(result), status_code
         elif event == 'pull_request_review_comment' and data['action'] == 'created':
             comment = data['comment']
@@ -226,9 +234,7 @@ def webhook():
             owner = repo['owner']['login']
             repo_name = repo['name']
 
-            token = github_api.get_github_token()
-
-            result, status_code = handle_pr_review_comment(token, owner, repo_name, pull_request, comment)
+            result, status_code = handle_pr_review_comment(installation_id, owner, repo_name, pull_request, comment)
             return jsonify(result), status_code
         else:
             logger.info("Event is not handled, ignoring")
