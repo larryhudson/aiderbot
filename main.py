@@ -239,7 +239,7 @@ def create_pr_review_comment_reaction(owner, repo, comment_id, reaction):
         "Accept": "application/vnd.github.v3+json"
     }
     data = {
-        "body": reaction
+        "content": reaction
     }
     response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
@@ -561,7 +561,7 @@ def do_coding_request(prompt, files_list, root_folder_path):
     full_file_paths = [os.path.join(root_folder_path, file) for file in files_list]
     io = InputOutput(yes=True)
     git_repo = GitRepo(io, full_file_paths, root_folder_path, models=model.commit_message_models())
-    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False)
+    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False)
 
     logger.info("Running coder with prompt")
     try:
