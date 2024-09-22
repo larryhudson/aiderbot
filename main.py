@@ -31,7 +31,7 @@ logger = logging.getLogger(__name__)
 GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_here')
 APP_USER_NAME = os.getenv('GITHUB_APP_USER_NAME', 'larryhudson-aider-github[bot]')
 
-def create_pull_request_for_issue(token, owner, repo_name, issue):
+def create_pull_request_for_issue(*, token, owner, repo_name, issue):
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
 
     # Create a temporary directory within the current working directory
@@ -91,7 +91,7 @@ def create_pull_request_for_issue(token, owner, repo_name, issue):
         shutil.rmtree(temp_dir)
         logger.info(f"Cleaned up temporary directory: {temp_dir}")
 
-def handle_pr_review_comment(token, owner, repo_name, pull_request, comment):
+def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
     logger.info(f"Processing PR review comment for PR #{pull_request['number']} in {owner}/{repo_name}")
 
     # Check if the comment is from the app user
@@ -220,19 +220,17 @@ def webhook():
 
         if event == 'issues' and data['action'] == 'opened':
             result, status_code = create_pull_request_for_issue(
-                token,
-                data['repository']['owner']['login'],
-                data['repository']['name'],
-                data['issue']
+                token=token,
+                **{k: data['repository'][k] for k in ['owner', 'name']},
+                issue=data['issue']
             )
             return jsonify(result), status_code
         elif event == 'pull_request_review_comment' and data['action'] == 'created':
             result, status_code = handle_pr_review_comment(
-                token,
-                data['repository']['owner']['login'],
-                data['repository']['name'],
-                data['pull_request'],
-                data['comment']
+                token=token,
+                **{k: data['repository'][k] for k in ['owner', 'name']},
+                pull_request=data['pull_request'],
+                comment=data['comment']
             )
             return jsonify(result), status_code
         else:
