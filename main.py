@@ -243,23 +243,6 @@ def webhook():
         logger.exception("Full traceback:")
         return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
-from werkzeug.serving import run_simple
-
-class CustomReloader(object):
-    def __init__(self, create_app):
-        self.create_app = create_app
-        self._app = create_app()
-
-    def __call__(self):
-        return self._app
-
-    def should_reload(self):
-        return False
-
-def create_app():
-    return app
-
 if __name__ == '__main__':
-    url = 'http://localhost:5000'
-    run_simple('localhost', 5000, CustomReloader(create_app), use_reloader=True, use_debugger=True)
+    app.run()
 
