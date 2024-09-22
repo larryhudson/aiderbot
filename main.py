@@ -27,22 +27,6 @@ from aider.io import InputOutput
 
 load_dotenv()
 
-def get_changed_file_paths(original_dir, working_dir):
-    """
-    Compare two directories and return a list of files that have changed.
-    """
-    changed_files = []
-    comparison = filecmp.dircmp(original_dir, working_dir)
-    
-    def recurse_and_compare(dcmp):
-        for name in dcmp.diff_files:
-            changed_files.append(os.path.relpath(os.path.join(dcmp.right, name), working_dir))
-        for sub_dcmp in dcmp.subdirs.values():
-            recurse_and_compare(sub_dcmp)
-    
-    recurse_and_compare(comparison)
-    return changed_files
-
 app = Flask(__name__)
 
 # Set up logging
@@ -106,77 +90,43 @@ def get_github_token():
     
     return None
 
-def download_repository(owner, repo, ref='main'):
+def clone_repository(temp_dir, owner, repo, branch='main', ):
     token = get_github_token()
     if not token:
         logger.error("Failed to get GitHub token")
         return None
-    
-    url = f"https://api.github.com/repos/{owner}/{repo}/zipball/{ref}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
+
+    clone_url = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
+
+    # clone the repo into the temp_dir
+    subprocess.run(['git', 'clone', clone_url, temp_dir], check=True)
+
+    # checkout the branch
+    subprocess.run(['git', 'checkout', branch], cwd=temp_dir, check=True)
+
+    return temp_dir
+
+def checkout_new_branch(repo_dir, branch_name):
     try:
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()
-        return response.content
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Failed to download repository: {e}")
-        return None
-
-def extract_repository(zip_content, temp_dir):
-    try:
-        repo_dir = os.path.join(temp_dir, f'repo_{uuid.uuid4().hex}')
-        os.makedirs(repo_dir, exist_ok=True)
-
-        with zipfile.ZipFile(io.BytesIO(zip_content)) as zip_ref:
-            zip_ref.extractall(repo_dir)
-        
-        # The extracted content is in a subdirectory, so we need to find it
-        extracted_dir = next(os.walk(repo_dir))[1][0]
-        full_extracted_path = os.path.join(repo_dir, extracted_dir)
-        
-        # Move the contents to the repo_dir
-        for item in os.listdir(full_extracted_path):
-            s = os.path.join(full_extracted_path, item)
-            d = os.path.join(repo_dir, item)
-            shutil.move(s, d)
-        
-        # Remove the now-empty subdirectory
-        os.rmdir(full_extracted_path)
-        
-        # Initialize git repository
-        subprocess.run(['git', 'init'], cwd=repo_dir, check=True)
-        logger.info(f"Initialized git repository in {repo_dir}")
-
-        # Make initial commit
-        subprocess.run(['git', 'add', '-A'], cwd=repo_dir, check=True)
-        subprocess.run(['git', 'commit', '-m', 'initial'], cwd=repo_dir, check=True)
-
-        
-        return repo_dir
-    except Exception as e:
-        logger.error(f"Failed to extract repository or initialize git: {e}")
-        return None
-
-def read_file(repo_dir, file_path):
-    full_path = os.path.join(repo_dir, file_path)
-    try:
-        with open(full_path, 'r') as file:
-            return file.read()
-    except Exception as e:
-        logger.error(f"Failed to read file {file_path}: {e}")
-        return None
-
-def write_file(repo_dir, file_path, content):
-    full_path = os.path.join(repo_dir, file_path)
-    try:
-        with open(full_path, 'w') as file:
-            file.write(content)
+        subprocess.run(['git', 'checkout', '-b', branch_name], cwd=repo_dir, check=True)
         return True
-    except Exception as e:
-        logger.error(f"Failed to write file {file_path}: {e}")
+    except:
+        logger.error(f"Failed to checkout new branch: {branch_name}")
+        return False
+
+
+def push_changes_to_repository(temp_dir, branch, set_upstream=False):
+    try:
+        push_command_args = ['git', 'push', 'origin', branch]
+        if set_upstream:
+            push_command_args += ['--set-upstream', 'origin', branch]
+
+        subprocess.run(*push_command_args, cwd=temp_dir, check=True)
+        
+        logger.info(f"Pushed changes to branch {branch}")
+        return True
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to push changes to branch {branch}: {e}")
         return False
 
 def create_branch(owner, repo, branch_name, sha):
@@ -195,35 +145,6 @@ def create_branch(owner, repo, branch_name, sha):
         return response.json()
     else:
         logger.error(f"Failed to create branch: {response.text}")
-        return None
-
-def update_file(owner, repo, path, message, content, branch):
-    token = get_github_token()
-    url = f"https://api.github.com/repos/{owner}/{repo}/contents/{path}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    data = {
-        "message": message,
-        "content": base64.b64encode(content.encode()).decode(),
-        "branch": branch
-    }
-    
-    # First, get the current file to retrieve its SHA
-    response = requests.get(url, headers=headers, params={"ref": branch})
-    if response.status_code == 200:
-        current_file = response.json()
-        data["sha"] = current_file["sha"]
-    elif response.status_code != 404:  # 404 means file doesn't exist yet
-        logger.error(f"Failed to get current file: {response.text}")
-        return None
-
-    response = requests.put(url, headers=headers, json=data)
-    if response.status_code in (200, 201):
-        return response.json()
-    else:
-        logger.error(f"Failed to update file: {response.text}")
         return None
 
 def create_pull_request(owner, repo, title, body, head, base):
@@ -271,24 +192,11 @@ def create_pull_request_for_issue(owner, repo_name, issue):
     logger.info(f"Created temporary directory: {temp_dir}")
 
     try:
-        zip_content = download_repository(owner, repo_name)
-        if not zip_content:
-            logger.error("Failed to download repository")
-            return {"error": "Failed to download repository"}, 500
-
-        logger.info("Repository downloaded successfully")
-
-        repo_dir = extract_repository(zip_content, temp_dir)
-        if not repo_dir:
-            logger.error("Failed to extract repository")
-            return {"error": "Failed to extract repository"}, 500
-
+        repo_dir = clone_repository(temp_dir, owner, repo_name)
         logger.info(f"Repository extracted to {repo_dir}")
 
-        # Create a copy of the original repository
-        original_repo_dir = os.path.join(temp_dir, f'original_{uuid.uuid4().hex}')
-        shutil.copytree(repo_dir, original_repo_dir)
-        logger.info(f"Created original repository copy at {original_repo_dir}")
+        branch_name = f"fix-issue-{issue['number']}"
+        checkout_new_branch(repo_dir, branch_name)
 
         files_list = extract_files_list_from_issue(issue['body'])
         logger.info(f"Extracted files list from issue: {files_list}")
@@ -301,43 +209,17 @@ def create_pull_request_for_issue(owner, repo_name, issue):
         coding_result = do_coding_request(prompt, files_list, repo_dir)
         logger.info("Coding request completed")
 
-        changed_file_paths = coding_result['changed_files']
-        logger.info(f"Changed files: {changed_file_paths}")
-
-        # Clean up the original copy
-        shutil.rmtree(original_repo_dir)
-        logger.info("Cleaned up original repository copy")
-
-        branch_name = f"fix-issue-{issue['number']}"
         main_branch = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}").json()['default_branch']
-        main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
+        # main_sha = requests.get(f"https://api.github.com/repos/{owner}/{repo_name}/git/ref/heads/{main_branch}").json()['object']['sha']
         
-        logger.info(f"Creating new branch: {branch_name}")
-        new_branch = create_branch(owner, repo_name, branch_name, main_sha)
-        if not new_branch:
-            logger.error("Failed to create new branch")
-            return {"error": "Failed to create new branch"}, 500
+        # logger.info(f"Creating new branch: {branch_name}")
+        # new_branch = create_branch(owner, repo_name, branch_name, main_sha)
+        # if not new_branch:
+        #     logger.error("Failed to create new branch")
+        #     return {"error": "Failed to create new branch"}, 500
 
-        logger.info("New branch created successfully")
+        push_changes_to_repository(temp_dir, branch_name, set_upstream=True)
 
-        for file_path in changed_file_paths:
-            logger.info(f"Processing changed file: {file_path}")
-            content = read_file(repo_dir, file_path)
-            if not content:
-                logger.error(f"Failed to read file {file_path}")
-                return {"error": f"Failed to read file {file_path}"}, 500
-            update_result = update_file(
-                owner,
-                repo_name,
-                file_path,
-                coding_result['commit_message'],
-                content,
-                branch_name
-            )
-            if not update_result:
-                logger.error(f"Failed to update file {file_path}")
-                return {"error": f"Failed to update file {file_path}"}, 500
-            logger.info(f"File {file_path} updated successfully")
 
         logger.info("Creating pull request")
         pr = create_pull_request(
@@ -416,18 +298,10 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
             return {"error": "Invalid pull request data"}, 500
         logger.info(f"pull_request['head']['ref'] is set to: {pull_request['head']['ref']}")
 
-        # Download and extract the repository
-        zip_content = download_repository(owner, repo_name, pull_request['head']['ref'])
-        logger.info(f"Downloaded repository: {'Success' if zip_content else 'Failed'}")
-        if not zip_content:
-            logger.error("Failed to download repository")
-            return {"error": "Failed to download repository"}, 500
-
-        repo_dir = extract_repository(zip_content, temp_dir)
-        logger.info(f"Extracted repository to: {repo_dir}")
+        repo_dir = clone_repository(temp_dir, owner, repo_name, pull_request['head']['ref'])
         if not repo_dir:
-            logger.error("Failed to extract repository")
-            return {"error": "Failed to extract repository"}, 500
+            logger.error("Failed to clone repository")
+            return {"error": "Failed to clone repository"}, 500
 
         # Get the list of files changed in the PR
         changed_pr_files = get_pr_changed_files(owner, repo_name, pull_request['number'])
@@ -440,38 +314,40 @@ def handle_pr_review_comment(owner, repo_name, pull_request, comment):
         logger.info(f"Combined files list: {files_list}")
 
         # Create a copy of the original repository
-        original_repo_dir = os.path.join(temp_dir, f'original_{uuid.uuid4().hex}')
-        shutil.copytree(repo_dir, original_repo_dir)
-        logger.info(f"Created original repository copy at {original_repo_dir}")
+        # original_repo_dir = os.path.join(temp_dir, f'original_{uuid.uuid4().hex}')
+        # shutil.copytree(repo_dir, original_repo_dir)
+        # logger.info(f"Created original repository copy at {original_repo_dir}")
 
         # Do the coding request
         logger.info("Starting coding request")
         coding_result = do_coding_request(prompt, files_list, repo_dir)
         logger.info("Completed coding request")
 
-        changed_file_paths = coding_result['changed_files']
-        logger.info(f"Files changed after coding request: {changed_file_paths}")
+        push_changes_to_repository(temp_dir, pull_request['head']['ref'])
 
-        # Update the files in the PR branch
-        for file_path in changed_file_paths:
-            logger.info(f"Processing file: {file_path}")
-            content = read_file(repo_dir, file_path)
-            if not content:
-                logger.error(f"Failed to read file {file_path}")
-                return {"error": f"Failed to read file {file_path}"}, 500
-            logger.info(f"File content read successfully: {file_path}")
-            update_result = update_file(
-                owner,
-                repo_name,
-                file_path,
-                coding_result['commit_message'],
-                content,
-                pull_request['head']['ref']
-            )
-            if not update_result:
-                logger.error(f"Failed to update file {file_path}")
-                return {"error": f"Failed to update file {file_path}"}, 500
-            logger.info(f"File {file_path} updated successfully")
+        # changed_file_paths = coding_result['changed_files']
+        # logger.info(f"Files changed after coding request: {changed_file_paths}")
+
+        # # Update the files in the PR branch
+        # for file_path in changed_file_paths:
+        #     logger.info(f"Processing file: {file_path}")
+        #     content = read_file(repo_dir, file_path)
+        #     if not content:
+        #         logger.error(f"Failed to read file {file_path}")
+        #         return {"error": f"Failed to read file {file_path}"}, 500
+        #     logger.info(f"File content read successfully: {file_path}")
+        #     update_result = update_file(
+        #         owner,
+        #         repo_name,
+        #         file_path,
+        #         coding_result['commit_message'],
+        #         content,
+        #         pull_request['head']['ref']
+        #     )
+        #     if not update_result:
+        #         logger.error(f"Failed to update file {file_path}")
+        #         return {"error": f"Failed to update file {file_path}"}, 500
+        #     logger.info(f"File {file_path} updated successfully")
 
         pr_comment_body = f"I've updated the PR based on the review comment.\n\n{coding_result['summary']}"
 
@@ -615,12 +491,12 @@ def do_coding_request(prompt, files_list, root_folder_path):
 
     logger.info("Running coder with prompt")
     try:
-        coder.run(prompt)
+        summary =coder.run(prompt)
         logger.info("Coding request completed")
 
-        summary_prompt = "/ask Thank you. Please provide a summary of the changes you just made."
-        summary = coder.run(summary_prompt)
-        logger.info("Summary generated successfully")
+        # summary_prompt = "/ask Thank you. Please provide a summary of the changes you just made."
+        # summary = coder.run(summary_prompt)
+        # logger.info("Summary generated successfully")
     except Exception as e:
         logger.error(f"Error during coding request: {str(e)}")
         import traceback
@@ -642,10 +518,10 @@ def do_coding_request(prompt, files_list, root_folder_path):
     logger.info(f"Commit message: {commit_message}")
 
     # Make a commit if there are changes
-    if changed_files:
-        subprocess.run(['git', 'add', '-A'], cwd=root_folder_path, check=True)
-        subprocess.run(['git', 'commit', '-m', commit_message], cwd=root_folder_path, check=True)
-        logger.info("Changes committed")
+    # if changed_files:
+    #     subprocess.run(['git', 'add', '-A'], cwd=root_folder_path, check=True)
+    #     subprocess.run(['git', 'commit', '-m', commit_message], cwd=root_folder_path, check=True)
+    #     logger.info("Changes committed")
 
     return {
         'changed_files': changed_files,
