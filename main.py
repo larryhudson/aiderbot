@@ -30,9 +30,14 @@ logger = logging.getLogger(__name__)
 # GitHub App configuration
 GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_here')
 APP_USER_NAME = os.getenv('GITHUB_APP_USER_NAME', 'larryhudson-aider-github[bot]')
+ALLOWED_USERNAME = os.getenv('ALLOWED_USERNAME')
 
 def create_pull_request_for_issue(*, token, owner, repo_name, issue):
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
+
+    if ALLOWED_USERNAME and issue['user']['login'] != ALLOWED_USERNAME:
+        logger.info(f"Ignoring issue from non-allowed user: {issue['user']['login']}")
+        return {"message": "Issue from non-allowed user ignored"}, 200
 
     # Create a temporary directory within the current working directory
     temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
@@ -98,6 +103,11 @@ def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
     if comment['user']['login'] == APP_USER_NAME:
         logger.info(f"Ignoring comment from {APP_USER_NAME}")
         return {"message": "Comment from app user ignored"}, 200
+
+    # Check if the comment is from the allowed user (if set)
+    if ALLOWED_USERNAME and comment['user']['login'] != ALLOWED_USERNAME:
+        logger.info(f"Ignoring comment from non-allowed user: {comment['user']['login']}")
+        return {"message": "Comment from non-allowed user ignored"}, 200
 
     pr_review_comment_id = comment['id']
     eyes_reaction_id = github_api.create_pr_review_comment_reaction(token, owner, repo_name, pr_review_comment_id, "eyes")
