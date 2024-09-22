@@ -9,10 +9,10 @@ import os
 import logging
 import tempfile
 import shutil
+
 import github_api
 import git_commands
 import aider_coder
-
 
 app = Flask(__name__)
 
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 
 # GitHub App configuration
 GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_here')
-APP_USER_NAME = "larryhudson-aider-github[bot]"
+APP_USER_NAME = os.getenv('GITHUB_APP_USER_NAME', 'larryhudson-aider-github[bot]')
 
 def create_pull_request_for_issue(token, owner, repo_name, issue):
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
