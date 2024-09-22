@@ -1,38 +1,36 @@
-# GitHub App for Issue Resolution
+# Aider GitHub App
 
-> This GitHub App is powered by [Aider](https://aider.chat/) and [Claude 3.5 Sonnet](https://www.anthropic.com/news/claude-3-5-sonnet).
+This GitHub App uses [Aider](https://aider.chat/) and [Claude 3.5 Sonnet](https://www.anthropic.com/news/claude-3-5-sonnet) to automatically create pull requests to resolve issues and respond to pull request review comments.
 
-This GitHub App automatically creates pull requests to resolve issues and responds to pull request review comments.
-
-## How It Works
+## How it works
 
 This GitHub App automates the process of addressing issues and responding to pull request review comments. Here's an overview of how it works:
 
-1. **Event Listening**: The app listens for two main GitHub events:
+1. It uses a webhook to listen for GitHub repository events:
    - When a new issue is created
    - When a new pull request review comment is added
+   - The app 'reacts' to the new issue / pull request review comment with the 👀 reaction to show that it is working.
 
-2. **Repository Interaction**:
+2. It clones the repository to a temporary directory:
    - When an event is triggered, the app clones the repository to a temporary directory.
    - It uses Aider to run an LLM (Language Model) prompt that analyzes the issue or review comment and makes the necessary changes to the code.
 
-3. **Change Management**:
+3. Using Aider, it attempts to resolve the issue by making code changes.
+   - It uses Aider's 'repo map' feature to choose which files it needs to edit.
+   - Aider automatically creates a commit for each change it makes.
+
+3. It pushes its changes to a new branch:
    - After making changes, the app creates a new branch in the repository.
-   - It then pushes the changes to this new branch.
-
-4. **GitHub API Integration**:
-   - The app uses the GitHub API to create new pull requests with the changes it has made.
-   - It also uses the API to create comments on issues and pull requests, providing updates on its actions.
-   - The app can add reactions to issues and comments to indicate its status (e.g., "eyes" reaction when it starts processing, "rocket" when it's done).
-
-5. **Continuous Interaction**:
-   - The app can respond to further review comments on the pull requests it creates, making additional changes as needed.
+   - It then pushes the new branch to GitHub.
+   - Then it creates an issue comment that describes the pull request.
 
 This automated workflow helps streamline the process of addressing issues and incorporating feedback, saving time for developers and maintainers.
 
-## Setup Instructions
+This is an experiment and is still in early development, so expect bugs!
 
-Follow these steps to set up and run the GitHub App:
+## Setup instructions
+
+Follow these steps to set up and run the GitHub App, and get the webhook server running on your local machine:
 
 1. **Clone the repository and set up the environment:**
    ```
