@@ -1,5 +1,7 @@
 # GitHub App for Issue Resolution
 
+> This GitHub App is powered by [Aider](https://aider.chat/) and [Claude 3.5 Sonnet](https://www.anthropic.com/news/claude-3-5-sonnet).
+
 This GitHub App automatically creates pull requests to resolve issues and responds to pull request review comments.
 
 ## Setup Instructions
