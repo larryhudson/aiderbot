@@ -221,14 +221,16 @@ def webhook():
         if event == 'issues' and data['action'] == 'opened':
             result, status_code = create_pull_request_for_issue(
                 token=token,
-                **{k: data['repository'][k] for k in ['owner', 'name']},
+                owner=data['repository']['owner']['login'],
+                repo_name=data['repository']['name'],
                 issue=data['issue']
             )
             return jsonify(result), status_code
         elif event == 'pull_request_review_comment' and data['action'] == 'created':
             result, status_code = handle_pr_review_comment(
                 token=token,
-                **{k: data['repository'][k] for k in ['owner', 'name']},
+                owner=data['repository']['owner']['login'],
+                repo_name=data['repository']['name'],
                 pull_request=data['pull_request'],
                 comment=data['comment']
             )
