@@ -4,6 +4,32 @@
 
 This GitHub App automatically creates pull requests to resolve issues and responds to pull request review comments.
 
+## How It Works
+
+This GitHub App automates the process of addressing issues and responding to pull request review comments. Here's an overview of how it works:
+
+1. **Event Listening**: The app listens for two main GitHub events:
+   - When a new issue is created
+   - When a new pull request review comment is added
+
+2. **Repository Interaction**:
+   - When an event is triggered, the app clones the repository to a temporary directory.
+   - It uses Aider to run an LLM (Language Model) prompt that analyzes the issue or review comment and makes the necessary changes to the code.
+
+3. **Change Management**:
+   - After making changes, the app creates a new branch in the repository.
+   - It then pushes the changes to this new branch.
+
+4. **GitHub API Integration**:
+   - The app uses the GitHub API to create new pull requests with the changes it has made.
+   - It also uses the API to create comments on issues and pull requests, providing updates on its actions.
+   - The app can add reactions to issues and comments to indicate its status (e.g., "eyes" reaction when it starts processing, "rocket" when it's done).
+
+5. **Continuous Interaction**:
+   - The app can respond to further review comments on the pull requests it creates, making additional changes as needed.
+
+This automated workflow helps streamline the process of addressing issues and incorporating feedback, saving time for developers and maintainers.
+
 ## Setup Instructions
 
 Follow these steps to set up and run the GitHub App:
