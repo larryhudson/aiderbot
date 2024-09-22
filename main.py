@@ -45,6 +45,7 @@ GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_
 GITHUB_APP_ID = os.getenv('GITHUB_APP_ID')
 GITHUB_PRIVATE_KEY_PATH = os.getenv('GITHUB_PRIVATE_KEY_PATH', 'path/to/your/private-key.pem')
 GITHUB_INSTALLATION_ID = os.getenv('GITHUB_INSTALLATION_ID')
+APP_USER_NAME = "larryhudson-aider-github[bot]"
 
 # Read the private key from the PEM file
 with open(GITHUB_PRIVATE_KEY_PATH, 'r') as key_file:
@@ -335,6 +336,11 @@ def create_pull_request_for_issue(owner, repo_name, issue):
 
 def handle_pr_review_comment(owner, repo_name, pull_request, comment):
     logger.info(f"Processing PR review comment for PR #{pull_request['number']} in {owner}/{repo_name}")
+
+    # Check if the comment is from the app user
+    if comment['user']['login'] == APP_USER_NAME:
+        logger.info(f"Ignoring comment from {APP_USER_NAME}")
+        return {"message": "Comment from app user ignored"}, 200
 
     pr_review_comment_id = comment['id']
     eyes_reaction_id = create_pr_review_comment_reaction(owner, repo_name, pr_review_comment_id, "eyes")
