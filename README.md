@@ -28,6 +28,16 @@ This automated workflow helps streamline the process of addressing issues and in
 
 This is an experiment and is still in early development, so expect bugs!
 
+## Prerequisites
+
+Before setting up the GitHub App, ensure you have the following:
+
+- GitHub account
+- Python (version 3.12.4 or later recommended)
+- Node.js (version 20.10.0 or later recommended) for Smee CLI
+- Anthropic API token for Claude 3.5 model
+- macOS Sonoma 14.3.1 or later (Note: This has been tested on macOS, but should work on other operating systems)
+
 ## Setup instructions
 
 Follow these steps to set up and run the GitHub App, and get the webhook server running on your local machine:
