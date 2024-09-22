@@ -50,7 +50,7 @@ Follow these steps to set up and run the GitHub App, and get the webhook server 
    - Fill in the required fields
    - Under 'Webhook', set the webhook URL to the one you created with Smee
    - [Generate a random string](https://www.random.org/strings/?num=10&len=32&digits=on&upperalpha=on&loweralpha=on&unique=on&format=html&rnd=new) and set it as the 'Webhook secret'
-   - Under 'Repository permissions', set 'Issues' and 'Pull requests' to 'Read & write'
+   - Under 'Repository permissions', set 'Issues', 'Pull requests' and 'Contents' to 'Read & write'
    - Under 'Subscribe to events', check 'Issues' and 'Pull request review comment'
    - Create the app
    - Under 'Private keys', generate a new private key and download it
