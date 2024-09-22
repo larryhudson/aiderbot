@@ -244,6 +244,7 @@ def webhook():
         return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
 
 from werkzeug.serving import run_simple
+import webbrowser
 
 class CustomReloader(object):
     def __init__(self, create_app):
@@ -260,5 +261,7 @@ def create_app():
     return app
 
 if __name__ == '__main__':
+    url = 'http://localhost:5000'
+    webbrowser.open(url)
     run_simple('localhost', 5000, CustomReloader(create_app), use_reloader=True, use_debugger=True)
 
