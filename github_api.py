@@ -22,7 +22,7 @@ GITHUB_PRIVATE_KEY_PATH = os.getenv('GITHUB_PRIVATE_KEY_PATH', 'path/to/your/pri
 with open(GITHUB_PRIVATE_KEY_PATH, 'r') as key_file:
     GITHUB_PRIVATE_KEY = key_file.read()
 
-def get_github_token(installation_id):
+def get_github_token_for_installation(installation_id):
     try:
         # Open PEM file and read the signing key
         with open(GITHUB_PRIVATE_KEY_PATH, 'rb') as pem_file:
