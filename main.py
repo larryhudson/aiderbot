@@ -249,6 +249,8 @@ def create_pull_request_for_issue(owner, repo_name, issue):
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
+        import traceback
+        logger.error(f"Full traceback:\n{traceback.format_exc()}")
         return {"error": "An internal error occurred"}, 500
 
     finally:
