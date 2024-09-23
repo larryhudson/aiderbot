@@ -12,7 +12,6 @@ import shutil
 import subprocess
 
 import github_api
-from github_api import get_pull_requests_for_issue
 import git_commands
 import aider_coder
 
