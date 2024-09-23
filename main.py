@@ -166,9 +166,9 @@ def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
         error_traceback = traceback.format_exc()
         logger.error(f"Full traceback:\n{error_traceback}")
         
-        # Post a comment about the error
+        # Reply to the PR review comment about the error
         error_comment = f"An error occurred while processing this PR review comment:\n\n```\n{str(e)}\n\n{error_traceback}\n```"
-        github_api.create_pr_comment(token, owner, repo_name, pull_request['number'], error_comment)
+        github_api.reply_to_pr_review_comment(token, owner, repo_name, pull_request['number'], comment['id'], error_comment)
         
         return {"error": f"An internal error occurred: {str(e)}"}, 500
 
