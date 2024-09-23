@@ -30,8 +30,9 @@ def do_coding_request(prompt, files_list, root_folder_path):
     logger.info("Running coder with prompt")
     coder.run(prompt)
 
-    summary_coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False, from_coder=coder)
-    summary = summary_coder.run("/ask Thank you. Please write a description of the changes you have made. This will be included in the pull request description.")
+    summary_prompt = f"Thank you for making those changes. Can you please write a description of the changes that were made? This will be included in the pull request description. Do not include a message at the start of your response."
+    summary_coder = Coder.create(edit_format="ask", main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False, from_coder=coder)
+    summary = summary_coder.run(summary_prompt)
 
     logger.info("Coding request completed")
 
