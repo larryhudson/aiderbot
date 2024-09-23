@@ -88,7 +88,13 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue):
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         import traceback
-        logger.error(f"Full traceback:\n{traceback.format_exc()}")
+        error_traceback = traceback.format_exc()
+        logger.error(f"Full traceback:\n{error_traceback}")
+        
+        # Post a comment about the error
+        error_comment = f"An error occurred while processing this issue:\n\n```\n{str(e)}\n\n{error_traceback}\n```"
+        github_api.create_issue_comment(token, owner, repo_name, issue['number'], error_comment)
+        
         return {"error": "An internal error occurred"}, 500
 
     finally:
@@ -157,7 +163,13 @@ def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
         import traceback
-        logger.error(f"Full traceback:\n{traceback.format_exc()}")
+        error_traceback = traceback.format_exc()
+        logger.error(f"Full traceback:\n{error_traceback}")
+        
+        # Post a comment about the error
+        error_comment = f"An error occurred while processing this PR review comment:\n\n```\n{str(e)}\n\n{error_traceback}\n```"
+        github_api.create_pr_comment(token, owner, repo_name, pull_request['number'], error_comment)
+        
         return {"error": f"An internal error occurred: {str(e)}"}, 500
 
     finally:
