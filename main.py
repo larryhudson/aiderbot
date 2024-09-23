@@ -139,12 +139,16 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
         shutil.rmtree(temp_dir)
         logger.info(f"Cleaned up temporary directory: {temp_dir}")
 
+def is_pr_created_by_bot(pull_request):
+    return pull_request['user']['login'] == APP_USER_NAME
+
 def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
     logger.info(f"Processing PR review comment for PR #{pull_request['number']} in {owner}/{repo_name}")
 
-    if not is_aiderbot_mentioned(comment['body']):
-        logger.info(f"Ignoring PR review comment as @aiderbot was not mentioned")
-        return {"message": "PR review comment ignored as @aiderbot was not mentioned"}, 200
+    # Check if the PR was created by the bot
+    if not is_pr_created_by_bot(pull_request) and not is_aiderbot_mentioned(comment['body']):
+        logger.info(f"Ignoring PR review comment as it's not on a bot-created PR and @aiderbot was not mentioned")
+        return {"message": "PR review comment ignored as it's not on a bot-created PR and @aiderbot was not mentioned"}, 200
 
     # Check if the comment is from the app user
     if comment['user']['login'] == APP_USER_NAME:
