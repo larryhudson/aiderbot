@@ -32,8 +32,15 @@ GITHUB_WEBHOOK_SECRET = os.getenv('GITHUB_WEBHOOK_SECRET', 'your_webhook_secret_
 APP_USER_NAME = os.getenv('GITHUB_APP_USER_NAME', 'larryhudson-aider-github[bot]')
 ALLOWED_USERNAME = os.getenv('ALLOWED_USERNAME')
 
+def is_aiderbot_mentioned(text):
+    return "@aiderbot" in text.lower()
+
 def create_pull_request_for_issue(*, token, owner, repo_name, issue):
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
+
+    if not is_aiderbot_mentioned(issue['title']) and not is_aiderbot_mentioned(issue['body']):
+        logger.info(f"Ignoring issue #{issue['number']} as @aiderbot was not mentioned")
+        return {"message": "Issue ignored as @aiderbot was not mentioned"}, 200
 
     if ALLOWED_USERNAME and issue['user']['login'] != ALLOWED_USERNAME:
         logger.info(f"Ignoring issue from non-allowed user: {issue['user']['login']}")
@@ -98,6 +105,10 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue):
 
 def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
     logger.info(f"Processing PR review comment for PR #{pull_request['number']} in {owner}/{repo_name}")
+
+    if not is_aiderbot_mentioned(comment['body']):
+        logger.info(f"Ignoring PR review comment as @aiderbot was not mentioned")
+        return {"message": "PR review comment ignored as @aiderbot was not mentioned"}, 200
 
     # Check if the comment is from the app user
     if comment['user']['login'] == APP_USER_NAME:
@@ -168,7 +179,6 @@ def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
 def extract_issue_number_from_pr_title(title):
     match = re.search(r'#(\d+)', title)
     return int(match.group(1)) if match else None
-
 
 def extract_files_list_from_issue(issue_body):
     files_list = []
