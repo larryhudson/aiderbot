@@ -21,16 +21,32 @@ if prompt_yes_no "Do you want to update your system?"; then
     sudo apt update && sudo apt upgrade -y
 fi
 
+# Function to check if a package is installed
+is_installed() {
+    dpkg -s "$1" >/dev/null 2>&1
+}
+
 # Install dependencies
-if prompt_yes_no "Do you want to install Python, Nginx, and Certbot?"; then
-    echo "Installing dependencies..."
-    sudo apt install python3 python3-pip python3-venv nginx certbot python3-certbot-nginx -y
+if prompt_yes_no "Do you want to check and install Python, Nginx, and Certbot?"; then
+    echo "Checking and installing dependencies..."
+    for pkg in python3 python3-pip python3-venv nginx certbot python3-certbot-nginx; do
+        if ! is_installed $pkg; then
+            echo "Installing $pkg..."
+            sudo apt install $pkg -y
+        else
+            echo "$pkg is already installed."
+        fi
+    done
 fi
 
 # Install Supervisor
-if prompt_yes_no "Do you want to install Supervisor?"; then
-    echo "Installing Supervisor..."
-    sudo apt install supervisor -y
+if prompt_yes_no "Do you want to check and install Supervisor?"; then
+    if ! is_installed supervisor; then
+        echo "Installing Supervisor..."
+        sudo apt install supervisor -y
+    else
+        echo "Supervisor is already installed."
+    fi
 fi
 
 # Set up virtual environment and install requirements
