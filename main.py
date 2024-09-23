@@ -64,7 +64,6 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue):
             comment_body = f"I've analyzed the issue, but no changes were necessary. Here's a summary of my findings:\n\n{coding_result['summary']}"
             github_api.create_issue_comment(token, owner, repo_name, issue['number'], comment_body)
             github_api.delete_issue_reaction(token, owner, repo_name, issue['number'], eyes_reaction_id)
-            github_api.create_issue_reaction(token, owner, repo_name, issue['number'], "eyes")
             return {"message": "No changes made, comment added to issue"}, 200
 
         # Changes were made, proceed with creating a PR
