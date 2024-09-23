@@ -180,6 +180,25 @@ def delete_pr_review_comment_reaction(token, owner, repo, comment_id, reaction_i
         logger.error(f"Failed to delete PR review comment reaction: {response.text}")
         return False
 
+def get_pull_requests_for_issue(token, owner, repo, issue_number):
+    url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    params = {
+        "state": "open",
+        "sort": "created",
+        "direction": "desc"
+    }
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code == 200:
+        prs = response.json()
+        return [pr for pr in prs if f"#{issue_number}" in pr['title']]
+    else:
+        logger.error(f"Failed to get pull requests: {response.text}")
+        return []
+
 def get_issue(token, owner, repo, issue_number):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
     headers = {
