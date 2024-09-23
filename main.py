@@ -9,6 +9,7 @@ import os
 import logging
 import tempfile
 import shutil
+import subprocess
 
 import github_api
 import git_commands
@@ -53,10 +54,7 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue):
     try:
         eyes_reaction_id = github_api.create_issue_reaction(token, owner, repo_name, issue['number'], "eyes")
 
-        repo_dir = git_commands.clone_repository(token, temp_dir, owner, repo_name)
-
-        branch_name = f"fix-issue-{issue['number']}"
-        git_commands.checkout_new_branch(repo_dir, branch_name)
+        repo_dir, initial_commit_hash = git_commands.clone_repository(token, temp_dir, owner, repo_name)
 
         files_list = extract_files_list_from_issue(issue['body'])
 
@@ -64,6 +62,20 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue):
         issue_pr_prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue['title']}\n\nIssue Body: {issue['body']}"
 
         coding_result = aider_coder.do_coding_request(issue_pr_prompt, files_list, repo_dir)
+
+        # Check if any changes were made
+        current_commit_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=repo_dir, capture_output=True, text=True, check=True).stdout.strip()
+
+        if current_commit_hash == initial_commit_hash:
+            logger.info("No changes were made by Aider")
+            comment_body = f"I've analyzed the issue, but no changes were necessary. Here's a summary of my findings:\n\n{coding_result['summary']}"
+            github_api.create_issue_comment(token, owner, repo_name, issue['number'], comment_body)
+            github_api.delete_issue_reaction(token, owner, repo_name, issue['number'], eyes_reaction_id)
+            return {"message": "No changes made, comment added to issue"}, 200
+
+        # Changes were made, proceed with creating a PR
+        branch_name = f"fix-issue-{issue['number']}"
+        git_commands.checkout_new_branch(repo_dir, branch_name)
 
         main_branch = github_api.get_default_branch(token, owner, repo_name)
 
