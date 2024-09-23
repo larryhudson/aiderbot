@@ -62,6 +62,7 @@ fi
 if prompt_yes_no "Do you want to configure Nginx?"; then
     echo "Configuring Nginx..."
     read -p "Enter your domain name: " domain_name
+    read -p "Enter your project name (e.g. aiderbot): " project_name
     sudo tee /etc/nginx/sites-available/$domain_name <<EOF
 server {
     server_name $domain_name;
@@ -90,19 +91,19 @@ if prompt_yes_no "Do you want to configure Gunicorn and Supervisor?"; then
     echo "Configuring Gunicorn and Supervisor..."
     read -p "Enter the full path to your project directory: " project_path
     read -p "Enter your username: " username
-    sudo tee /etc/supervisor/conf.d/mathweb.conf <<EOF
-[program:$domain_name]
+    sudo tee /etc/supervisor/conf.d/$project_name.conf <<EOF
+[program:$project_name]
 directory=$project_path
-command=$project_path/venv/bin/gunicorn mathweb.flask.app:app -w 4 -k uvicorn.workers.UvicornWorker -b unix:/tmp/$domain_name.sock
+command=$project_path/venv/bin/gunicorn $project_name.flask.app:app -w 4 -k uvicorn.workers.UvicornWorker -b unix:/tmp/$project_name.sock
 user=$username
 autostart=true
 autorestart=true
-stderr_logfile=/var/log/$domain_name.err.log
-stdout_logfile=/var/log/$domain_name.out.log
+stderr_logfile=/var/log/$project_name.err.log
+stdout_logfile=/var/log/$project_name.out.log
 EOF
     sudo supervisorctl reread
     sudo supervisorctl update
-    sudo supervisorctl start $domain_name
+    sudo supervisorctl start $project_name
 fi
 
 echo "Deployment script completed!"
