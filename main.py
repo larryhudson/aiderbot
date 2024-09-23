@@ -9,6 +9,7 @@ import os
 import logging
 import tempfile
 import shutil
+import subprocess
 
 import github_api
 import git_commands
