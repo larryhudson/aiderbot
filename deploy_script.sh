@@ -39,25 +39,27 @@ if prompt_yes_no "Do you want to set up a virtual environment and install requir
     python3 -m venv venv
     source venv/bin/activate
     pip install -r requirements.txt
-    pip install gunicorn
+    pip install gunicorn uvicorn
 fi
 
 # Configure Nginx
 if prompt_yes_no "Do you want to configure Nginx?"; then
     echo "Configuring Nginx..."
     read -p "Enter your domain name: " domain_name
-    sudo tee /etc/nginx/sites-available/your-app <<EOF
+    sudo tee /etc/nginx/sites-available/mathweb <<EOF
 server {
     server_name $domain_name;
 
     location / {
-        proxy_pass http://unix:/tmp/your-app.sock;
+        proxy_pass http://unix:/tmp/mathweb.sock;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
+        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto \$scheme;
     }
 }
 EOF
-    sudo ln -s /etc/nginx/sites-available/your-app /etc/nginx/sites-enabled/
+    sudo ln -s /etc/nginx/sites-available/mathweb /etc/nginx/sites-enabled/
     sudo nginx -t && sudo systemctl restart nginx
 fi
 
@@ -70,19 +72,21 @@ fi
 # Configure Gunicorn and Supervisor
 if prompt_yes_no "Do you want to configure Gunicorn and Supervisor?"; then
     echo "Configuring Gunicorn and Supervisor..."
-    sudo tee /etc/supervisor/conf.d/your-app.conf <<EOF
-[program:your-app]
-directory=/path/to/your-app
-command=/path/to/your-app/venv/bin/gunicorn main:app -w 4 -k uvicorn.workers.UvicornWorker -b unix:/tmp/your-app.sock
-user=your-username
+    read -p "Enter the full path to your project directory: " project_path
+    read -p "Enter your username: " username
+    sudo tee /etc/supervisor/conf.d/mathweb.conf <<EOF
+[program:mathweb]
+directory=$project_path
+command=$project_path/venv/bin/gunicorn mathweb.flask.app:app -w 4 -k uvicorn.workers.UvicornWorker -b unix:/tmp/mathweb.sock
+user=$username
 autostart=true
 autorestart=true
-stderr_logfile=/var/log/your-app.err.log
-stdout_logfile=/var/log/your-app.out.log
+stderr_logfile=/var/log/mathweb.err.log
+stdout_logfile=/var/log/mathweb.out.log
 EOF
     sudo supervisorctl reread
     sudo supervisorctl update
-    sudo supervisorctl start your-app
+    sudo supervisorctl start mathweb
 fi
 
 echo "Deployment script completed!"
