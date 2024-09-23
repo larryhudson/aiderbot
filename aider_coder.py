@@ -22,7 +22,12 @@ def do_coding_request(prompt, files_list, root_folder_path):
     logger.info(f"Files List: {files_list}")
     
     model = Model("claude-3-5-sonnet-20240620")
-    full_file_paths = [os.path.join(root_folder_path, file) for file in files_list]
+    full_file_paths = []
+    for file in files_list:
+        if isinstance(file, tuple):
+            full_file_paths.append(os.path.join(root_folder_path, file[0]))
+        else:
+            full_file_paths.append(os.path.join(root_folder_path, file))
     io = InputOutput(yes=True)
     git_repo = GitRepo(io, full_file_paths, root_folder_path, models=model.commit_message_models())
     coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False)
