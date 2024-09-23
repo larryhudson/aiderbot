@@ -1,6 +1,8 @@
+from dotenv import load_dotenv
+load_dotenv()
+
 from celery import Celery
 import os
-from dotenv import load_dotenv
 import logging
 import tempfile
 import shutil
@@ -11,7 +13,6 @@ import github_api
 import git_commands
 import aider_coder
 
-load_dotenv()
 
 # Celery configuration
 REDIS_URL = os.getenv('REDIS_URL', 'redis://localhost:6379/0')
