@@ -162,7 +162,7 @@ def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
 
         # Create a temporary directory
         temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
-        repo_dir = git_commands.clone_repository(token, temp_dir, owner, repo_name, pull_request['head']['ref'])
+        repo_dir, initial_commit_hash = git_commands.clone_repository(token, temp_dir, owner, repo_name, pull_request['head']['ref'])
 
         # Get the list of files changed in the PR
         changed_pr_files = github_api.get_pr_changed_files(token, owner, repo_name, pull_request['number'])
@@ -171,6 +171,16 @@ def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
         files_list = list(set(changed_pr_files + mentioned_files))
 
         coding_result = aider_coder.do_coding_request(prompt, files_list, repo_dir)
+
+        # Check if any changes were made
+        current_commit_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=repo_dir, capture_output=True, text=True, check=True).stdout.strip()
+
+        if current_commit_hash == initial_commit_hash:
+            logger.info("No changes were made by Aider")
+            comment_body = f"I've analyzed the issue, but no changes were necessary. Here's a summary of my findings:\n\n{coding_result['summary']}"
+            github_api.reply_to_pr_review_comment(token, owner, repo_name, pull_request['number'], pr_review_comment_id, comment_body)
+            github_api.delete_pr_review_comment_reaction(token, owner, repo_name, pr_review_comment_id, eyes_reaction_id)
+            return {"message": "No changes made, comment added to PR review comment"}, 200
 
         git_commands.push_changes_to_repository(temp_dir, pull_request['head']['ref'])
 
