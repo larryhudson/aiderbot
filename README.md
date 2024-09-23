@@ -26,6 +26,8 @@ This GitHub App automates the process of addressing issues and responding to pul
 
 This automated workflow helps streamline the process of addressing issues and incorporating feedback, saving time for developers and maintainers.
 
+To trigger the bot's action, you need to mention "@aiderbot" in the issue title or body, or in the pull request review comment. This ensures that the bot only responds when explicitly called upon.
+
 This is an experiment and is still in early development, so expect bugs!
 
 ## Prerequisites
