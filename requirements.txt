@@ -86,3 +86,5 @@ wcwidth==0.2.13
 Werkzeug==3.0.4
 yarl==1.11.1
 zipp==3.20.2
+celery==5.3.6
+redis==5.0.1

@@ -7,13 +7,9 @@ import hashlib
 import re
 import os
 import logging
-import tempfile
-import shutil
-import subprocess
 
 import github_api
-import git_commands
-import aider_coder
+from celery_tasks import task_create_pull_request_for_issue, task_handle_pr_review_comment, task_handle_issue_comment
 
 def has_multiple_commits(repo_dir, branch_name):
     """Check if the branch has more than one commit."""
@@ -321,31 +317,31 @@ def webhook():
             return jsonify({"error": "Failed to get GitHub token"}), 500
 
         if event == 'issues' and data['action'] == 'opened':
-            result, status_code = create_pull_request_for_issue(
+            task_create_pull_request_for_issue.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
                 repo_name=data['repository']['name'],
                 issue=data['issue']
             )
-            return jsonify(result), status_code
+            return jsonify({"message": "Task added to queue"}), 202
         elif event == 'issue_comment' and data['action'] == 'created':
-            result, status_code = handle_issue_comment(
+            task_handle_issue_comment.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
                 repo_name=data['repository']['name'],
                 issue=data['issue'],
                 comment=data['comment']
             )
-            return jsonify(result), status_code
+            return jsonify({"message": "Task added to queue"}), 202
         elif event == 'pull_request_review_comment' and data['action'] == 'created':
-            result, status_code = handle_pr_review_comment(
+            task_handle_pr_review_comment.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
                 repo_name=data['repository']['name'],
                 pull_request=data['pull_request'],
                 comment=data['comment']
             )
-            return jsonify(result), status_code
+            return jsonify({"message": "Task added to queue"}), 202
         else:
             logger.info("Event is not handled, ignoring")
             return jsonify({"message": "Received"}), 200
