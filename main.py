@@ -36,16 +36,17 @@ ALLOWED_USERNAME = os.getenv('ALLOWED_USERNAME')
 def is_aiderbot_mentioned(text):
     return "@aiderbot" in text.lower()
 
-def create_pull_request_for_issue(*, token, owner, repo_name, issue):
+def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=None):
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
 
-    if not is_aiderbot_mentioned(issue['title']) and not is_aiderbot_mentioned(issue['body']):
-        logger.info(f"Ignoring issue #{issue['number']} as @aiderbot was not mentioned")
-        return {"message": "Issue ignored as @aiderbot was not mentioned"}, 200
+    if not comments:
+        if not is_aiderbot_mentioned(issue['title']) and not is_aiderbot_mentioned(issue['body']):
+            logger.info(f"Ignoring issue #{issue['number']} as @aiderbot was not mentioned")
+            return {"message": "Issue ignored as @aiderbot was not mentioned"}, 200
 
-    if ALLOWED_USERNAME and issue['user']['login'] != ALLOWED_USERNAME:
-        logger.info(f"Ignoring issue from non-allowed user: {issue['user']['login']}")
-        return {"message": "Issue from non-allowed user ignored"}, 200
+        if ALLOWED_USERNAME and issue['user']['login'] != ALLOWED_USERNAME:
+            logger.info(f"Ignoring issue from non-allowed user: {issue['user']['login']}")
+            return {"message": "Issue from non-allowed user ignored"}, 200
 
     # Create a temporary directory within the current working directory
     temp_dir = tempfile.mkdtemp(dir=os.getcwd(), prefix='repo_')
@@ -60,6 +61,11 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue):
 
         # Prepare the prompt
         issue_pr_prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue['title']}\n\nIssue Body: {issue['body']}"
+        
+        if comments:
+            issue_pr_prompt += "\n\nComments:\n"
+            for comment in comments:
+                issue_pr_prompt += f"\n- {comment['body']}"
 
         coding_result = aider_coder.do_coding_request(issue_pr_prompt, files_list, repo_dir)
 
@@ -220,6 +226,32 @@ def extract_files_list_from_issue(issue_body):
                 break
     return files_list
 
+def handle_issue_comment(*, token, owner, repo_name, issue, comment):
+    logger.info(f"Processing issue comment for issue #{issue['number']} in {owner}/{repo_name}")
+
+    if not is_aiderbot_mentioned(comment['body']):
+        logger.info(f"Ignoring issue comment as @aiderbot was not mentioned")
+        return {"message": "Issue comment ignored as @aiderbot was not mentioned"}, 200
+
+    # Check if the comment is from the app user
+    if comment['user']['login'] == APP_USER_NAME:
+        logger.info(f"Ignoring comment from {APP_USER_NAME}")
+        return {"message": "Comment from app user ignored"}, 200
+
+    # Check if the comment is from the allowed user (if set)
+    if ALLOWED_USERNAME and comment['user']['login'] != ALLOWED_USERNAME:
+        logger.info(f"Ignoring comment from non-allowed user: {comment['user']['login']}")
+        return {"message": "Comment from non-allowed user ignored"}, 200
+
+    # Check if there's already a pull request for this issue
+    existing_prs = github_api.get_pull_requests_for_issue(token, owner, repo_name, issue['number'])
+    if existing_prs:
+        logger.info(f"Pull request already exists for issue #{issue['number']}")
+        return {"message": "Pull request already exists for this issue"}, 200
+
+    # If no existing PR, proceed with creating one
+    return create_pull_request_for_issue(token=token, owner=owner, repo_name=repo_name, issue=issue, comments=[comment])
+
 def verify_webhook_signature(payload_body, signature_header):
     """Verify that the payload was sent from GitHub by validating SHA256."""
     if not signature_header:
@@ -268,6 +300,15 @@ def webhook():
                 owner=data['repository']['owner']['login'],
                 repo_name=data['repository']['name'],
                 issue=data['issue']
+            )
+            return jsonify(result), status_code
+        elif event == 'issue_comment' and data['action'] == 'created':
+            result, status_code = handle_issue_comment(
+                token=token,
+                owner=data['repository']['owner']['login'],
+                repo_name=data['repository']['name'],
+                issue=data['issue'],
+                comment=data['comment']
             )
             return jsonify(result), status_code
         elif event == 'pull_request_review_comment' and data['action'] == 'created':
