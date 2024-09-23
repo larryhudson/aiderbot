@@ -15,6 +15,13 @@ import github_api
 import git_commands
 import aider_coder
 
+def has_multiple_commits(repo_dir, branch_name):
+    """Check if the branch has more than one commit."""
+    command = ['git', 'rev-list', '--count', f'origin/main..{branch_name}']
+    result = subprocess.run(command, cwd=repo_dir, capture_output=True, text=True, check=True)
+    commit_count = int(result.stdout.strip())
+    return commit_count > 1
+
 app = Flask(__name__)
 
 # Set up logging
@@ -87,11 +94,16 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
 
         git_commands.push_changes_to_repository(temp_dir, branch_name)
 
+        if has_multiple_commits(repo_dir, branch_name):
+            pr_title = f"Fix issue #{issue['number']}: {issue['title']}"
+        else:
+            pr_title = f"Fix issue #{issue['number']}: {coding_result['commit_message']}"
+
         pr = github_api.create_pull_request(
             token,
             owner,
             repo_name,
-            f"Fix issue #{issue['number']}: {coding_result['commit_message']}",
+            pr_title,
             f"This PR addresses the changes requested in issue #{issue['number']}\n\n{coding_result['summary']}",
             branch_name,
             main_branch
