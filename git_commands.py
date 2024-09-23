@@ -13,6 +13,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def clone_repository(token, temp_dir, owner, repo, branch='main'):
+    """Clone the repository and return the latest commit hash."""
 
     clone_url = f"https://x-access-token:{token}@github.com/{owner}/{repo}.git"
 
@@ -20,7 +21,9 @@ def clone_repository(token, temp_dir, owner, repo, branch='main'):
     subprocess.run(['git', 'clone', clone_url, temp_dir], check=True)
     subprocess.run(['git', 'checkout', branch], cwd=temp_dir, check=True)
 
-    return temp_dir
+    # Get the latest commit hash
+    latest_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=temp_dir, capture_output=True, text=True, check=True)
+    return temp_dir, latest_commit.stdout.strip()
 
 def checkout_new_branch(repo_dir, branch_name):
     try:
