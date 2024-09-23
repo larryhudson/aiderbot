@@ -46,16 +46,16 @@ To update the application when changes are made to the source code:
 
 4. Restart the Gunicorn service:
    ```
-   sudo supervisorctl restart mathweb
+   sudo supervisorctl restart your_domain_name
    ```
 
 ## Troubleshooting
 
 - Check Nginx logs: `sudo tail -f /var/log/nginx/error.log`
-- Check your application logs: `sudo tail -f /var/log/mathweb.err.log` and `sudo tail -f /var/log/mathweb.out.log`
+- Check your application logs: `sudo tail -f /var/log/your_domain_name.err.log` and `sudo tail -f /var/log/your_domain_name.out.log`
 - Ensure Nginx configuration is correct: `sudo nginx -t`
 - Restart Nginx: `sudo systemctl restart nginx`
-- Check Gunicorn status: `sudo supervisorctl status mathweb`
-- Restart the application: `sudo supervisorctl restart mathweb`
+- Check Gunicorn status: `sudo supervisorctl status your_domain_name`
+- Restart the application: `sudo supervisorctl restart your_domain_name`
 
 If you encounter any issues, please refer to the respective documentation for Nginx, Gunicorn, Certbot, and Supervisor.

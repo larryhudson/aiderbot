@@ -46,12 +46,12 @@ fi
 if prompt_yes_no "Do you want to configure Nginx?"; then
     echo "Configuring Nginx..."
     read -p "Enter your domain name: " domain_name
-    sudo tee /etc/nginx/sites-available/mathweb <<EOF
+    sudo tee /etc/nginx/sites-available/$domain_name <<EOF
 server {
     server_name $domain_name;
 
     location / {
-        proxy_pass http://unix:/tmp/mathweb.sock;
+        proxy_pass http://unix:/tmp/$domain_name.sock;
         proxy_set_header Host \$host;
         proxy_set_header X-Real-IP \$remote_addr;
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
@@ -59,7 +59,7 @@ server {
     }
 }
 EOF
-    sudo ln -s /etc/nginx/sites-available/mathweb /etc/nginx/sites-enabled/
+    sudo ln -s /etc/nginx/sites-available/$domain_name /etc/nginx/sites-enabled/
     sudo nginx -t && sudo systemctl restart nginx
 fi
 
@@ -75,18 +75,18 @@ if prompt_yes_no "Do you want to configure Gunicorn and Supervisor?"; then
     read -p "Enter the full path to your project directory: " project_path
     read -p "Enter your username: " username
     sudo tee /etc/supervisor/conf.d/mathweb.conf <<EOF
-[program:mathweb]
+[program:$domain_name]
 directory=$project_path
-command=$project_path/venv/bin/gunicorn mathweb.flask.app:app -w 4 -k uvicorn.workers.UvicornWorker -b unix:/tmp/mathweb.sock
+command=$project_path/venv/bin/gunicorn mathweb.flask.app:app -w 4 -k uvicorn.workers.UvicornWorker -b unix:/tmp/$domain_name.sock
 user=$username
 autostart=true
 autorestart=true
-stderr_logfile=/var/log/mathweb.err.log
-stdout_logfile=/var/log/mathweb.out.log
+stderr_logfile=/var/log/$domain_name.err.log
+stdout_logfile=/var/log/$domain_name.out.log
 EOF
     sudo supervisorctl reread
     sudo supervisorctl update
-    sudo supervisorctl start mathweb
+    sudo supervisorctl start $domain_name
 fi
 
 echo "Deployment script completed!"
