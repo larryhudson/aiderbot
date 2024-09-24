@@ -34,6 +34,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Log the REDIS_URL being used
+logger.info(f"Using REDIS_URL: {REDIS_URL}")
+
 # GitHub App configuration
 APP_USER_NAME = os.getenv('GITHUB_APP_USER_NAME', 'larryhudson-aider-github[bot]')
 ALLOWED_USERNAME = os.getenv('ALLOWED_USERNAME')
