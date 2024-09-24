@@ -13,8 +13,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Make port 8000 available to the world outside this container
 EXPOSE 8000
 
-# Define environment variable
+# Define environment variables
 ENV FLASK_ENV=production
+ENV REDIS_URL=redis://redis:6379/0
 
 # Run app.py when the container launches
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "app:app"]
