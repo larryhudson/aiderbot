@@ -10,7 +10,10 @@ services:
     depends_on:
       - redis
     environment:
-      - REDIS_URL=redis://redis:6379/0
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
 
   redis:
     image: redis:alpine

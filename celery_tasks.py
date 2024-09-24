@@ -27,12 +27,20 @@ import aider_coder
 # Celery configuration
 # This will use the REDIS_URL and REDIS_PASSWORD from the environment variables
 REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
-REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
+REDIS_PORT = os.getenv('REDIS_PORT', '6379')
+REDIS_DB = os.getenv('REDIS_DB', '0')
 
 if REDIS_PASSWORD:
-    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_URL.split("://")[1]}'
+    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
+else:
+    REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
 
 app = Celery('tasks', broker=REDIS_URL, backend=REDIS_URL)
+
+# Log the REDIS_URL being used (make sure to mask the password)
+masked_url = REDIS_URL.replace(REDIS_PASSWORD, '****') if REDIS_PASSWORD else REDIS_URL
+logger.info(f"Using REDIS_URL: {masked_url}")
 
 # Log the REDIS_URL being used
 logger.info(f"Using REDIS_URL: {REDIS_URL}")
