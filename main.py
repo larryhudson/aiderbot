@@ -106,7 +106,3 @@ def webhook():
         logger.error(f"An error occurred in webhook handler: {str(e)}")
         logger.exception("Full traceback:")
         return jsonify({"error": f"An internal error occurred: {str(e)}"}), 500
-
-if __name__ == '__main__':
-    app.run(debug=True)
-
