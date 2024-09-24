@@ -4,3 +4,4 @@ redis==5.0.8
 python-dotenv==1.0.1
 requests==2.32.3
 PyJWT==2.9.0
+aider-chat==0.57.1
