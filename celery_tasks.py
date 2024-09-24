@@ -1,27 +1,12 @@
 from dotenv import load_dotenv
 load_dotenv()
 
-from celery import Celery
 import os
 import logging
 import tempfile
 import shutil
 import subprocess
 import re
-
-import github_api
-import git_commands
-import aider_coder
-
-
-# Celery configuration
-# This will use the REDIS_URL from the environment variable set in docker-compose.yml
-# If not set, it will fall back to the default value
-REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
-app = Celery('tasks', broker=REDIS_URL, backend=REDIS_URL)
-
-# Log the REDIS_URL being used
-logger.info(f"Using REDIS_URL: {REDIS_URL}")
 
 # Set up logging
 logging.basicConfig(
@@ -33,6 +18,17 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+from celery import Celery
+import github_api
+import git_commands
+import aider_coder
+
+# Celery configuration
+# This will use the REDIS_URL from the environment variable set in docker-compose.yml
+# If not set, it will fall back to the default value
+REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+app = Celery('tasks', broker=REDIS_URL, backend=REDIS_URL)
 
 # Log the REDIS_URL being used
 logger.info(f"Using REDIS_URL: {REDIS_URL}")
