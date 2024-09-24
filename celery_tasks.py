@@ -25,9 +25,13 @@ import git_commands
 import aider_coder
 
 # Celery configuration
-# This will use the REDIS_URL from the environment variable set in docker-compose.yml
-# If not set, it will fall back to the default value
+# This will use the REDIS_URL and REDIS_PASSWORD from the environment variables
+REDIS_PASSWORD = os.getenv('REDIS_PASSWORD', '')
 REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
+
+if REDIS_PASSWORD:
+    REDIS_URL = f'redis://:{REDIS_PASSWORD}@{REDIS_URL.split("://")[1]}'
+
 app = Celery('tasks', broker=REDIS_URL, backend=REDIS_URL)
 
 # Log the REDIS_URL being used
