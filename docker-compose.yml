@@ -2,14 +2,13 @@ version: '3.8'
 
 services:
   web:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
       - "8000:8000"
-    environment:
-      - FLASK_ENV=production
     depends_on:
       - redis
-    command: gunicorn --bind 0.0.0.0:8000 app:app
 
   redis:
     image: redis:alpine
