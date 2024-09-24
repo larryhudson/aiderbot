@@ -5,3 +5,4 @@ python-dotenv==1.0.1
 requests==2.32.3
 PyJWT==2.9.0
 aider-chat==0.57.1
+celery==5.4.0
