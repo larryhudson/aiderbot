@@ -27,9 +27,9 @@ is_installed() {
 }
 
 # Install dependencies
-if prompt_yes_no "Do you want to check and install Python, Nginx, and Certbot?"; then
+if prompt_yes_no "Do you want to check and install Python, Nginx, Certbot, and Redis?"; then
     echo "Checking and installing dependencies..."
-    for pkg in python3 python3-pip python3-venv nginx certbot python3-certbot-nginx; do
+    for pkg in python3 python3-pip python3-venv nginx certbot python3-certbot-nginx redis-server; do
         if ! is_installed $pkg; then
             echo "Installing $pkg..."
             sudo apt install $pkg -y
@@ -37,6 +37,14 @@ if prompt_yes_no "Do you want to check and install Python, Nginx, and Certbot?";
             echo "$pkg is already installed."
         fi
     done
+fi
+
+# Configure Redis
+if prompt_yes_no "Do you want to configure Redis?"; then
+    echo "Configuring Redis..."
+    sudo systemctl enable redis-server
+    sudo systemctl start redis-server
+    echo "Redis is now running and enabled to start on boot."
 fi
 
 # Install Supervisor
