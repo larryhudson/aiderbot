@@ -15,8 +15,13 @@ import aider_coder
 
 
 # Celery configuration
+# This will use the REDIS_URL from the environment variable set in docker-compose.yml
+# If not set, it will fall back to the default value
 REDIS_URL = os.getenv('REDIS_URL', 'redis://redis:6379/0')
 app = Celery('tasks', broker=REDIS_URL, backend=REDIS_URL)
+
+# Log the REDIS_URL being used
+logger.info(f"Using REDIS_URL: {REDIS_URL}")
 
 # Set up logging
 logging.basicConfig(
