@@ -7,6 +7,7 @@ import tempfile
 import shutil
 import subprocess
 import re
+import git
 
 # Set up logging
 logging.basicConfig(
@@ -18,6 +19,11 @@ logging.basicConfig(
     ]
 )
 logger = logging.getLogger(__name__)
+
+# Explicitly set the Git executable path
+git_executable = "/usr/bin/git"
+git.refresh(git_executable)
+logger.info(f"Git executable set to: {git_executable}")
 
 from celery import Celery
 import github_api
