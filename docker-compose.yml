@@ -10,14 +10,12 @@ services:
     depends_on:
       - redis
     environment:
-      - REDIS_HOST: redis
-      - REDIS_PORT: 6379
-      - REDIS_DB: 0
-      - REDIS_PASSWORD: HIXSjIhPiMyYLi1uDXJiaAZ6W2YL2bAY
-      - FLASK_ENV: production
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+      - FLASK_ENV=production
 
   redis:
-    image: redis:alpine
-    command: redis-server --requirepass HIXSjIhPiMyYLi1uDXJiaAZ6W2YL2bAY
-    ports:
-      - "6379:6379"
+    image: bitnami/redis:latest
+    environment:
+      - ALLOW_EMPTY_PASSWORD=yes
