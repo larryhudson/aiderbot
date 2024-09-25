@@ -15,6 +15,18 @@ services:
       - REDIS_DB=0
       - FLASK_ENV=production
 
+  celery_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A celery_tasks worker --loglevel=info
+    depends_on:
+      - redis
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_DB=0
+
   redis:
     image: bitnami/redis:latest
     environment:
