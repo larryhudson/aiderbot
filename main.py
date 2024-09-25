@@ -7,6 +7,7 @@ import hashlib
 import os
 import logging
 import github_api
+import subprocess
 from celery_tasks import task_create_pull_request_for_issue, task_handle_pr_review_comment, task_handle_issue_comment
 
 def has_multiple_commits(repo_dir, branch_name):
