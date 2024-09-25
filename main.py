@@ -17,7 +17,7 @@ def has_multiple_commits(repo_dir, branch_name):
     commit_count = int(result.stdout.strip())
     return commit_count > 1
 
-app = Flask(__name__)
+application = Flask(__name__)
 
 # Set up logging
 logging.basicConfig(
@@ -43,7 +43,7 @@ def verify_webhook_signature(payload_body, signature_header):
     result = hmac.compare_digest(expected_signature, signature_header)
     return result
 
-@app.route('/', methods=['GET'])
+@application.route('/', methods=['GET'])
 def index():
     return jsonify({"message": "Hello, World!"})
 
