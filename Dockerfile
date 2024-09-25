@@ -1,6 +1,10 @@
 # Use an official Python runtime as a parent image
 FROM python:3.12-slim-bullseye
 
+# This Dockerfile can be built with:
+# docker build -t myapp:v1.0 .
+# This will create an image named 'myapp' with tag 'v1.0'
+
 # Set the working directory in the container
 WORKDIR /app
 
