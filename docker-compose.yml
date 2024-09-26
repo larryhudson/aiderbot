@@ -7,7 +7,7 @@ services:
       dockerfile: Dockerfile
     command: gunicorn --bind 0.0.0.0:8000 main:app
     ports:
-      - "8000:8000"
+      - "8001:8000"
     environment:
       - FLASK_ENV=production
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
