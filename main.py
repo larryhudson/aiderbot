@@ -50,8 +50,8 @@ def index():
 @app.route('/webhook', methods=['POST'])
 def webhook():
     try:
-        import json
-        logger.info(f"Received webhook payload:\n{json.dumps(request.json, indent=2)}")
+        # import json
+        # logger.info(f"Received webhook payload:\n{json.dumps(request.json, indent=2)}")
 
         signature = request.headers.get('X-Hub-Signature-256')
         payload = request.data
@@ -68,13 +68,17 @@ def webhook():
         if not event or not data:
             return jsonify({"error": "Invalid payload"}), 400
 
+        action = data['action']
+
+        logger.info(f"Handling webhook:\nEvent: {event}\nAction: {action}")
+
         installation_id = data['installation']['id']
         token = github_api.get_github_token_for_installation(installation_id)
         if not token:
             logger.error("Failed to get GitHub token")
             return jsonify({"error": "Failed to get GitHub token"}), 500
 
-        if event == 'issues' and data['action'] == 'opened':
+        if event == 'issues' and action == 'opened':
             task_create_pull_request_for_issue.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
@@ -82,7 +86,7 @@ def webhook():
                 issue=data['issue']
             )
             return jsonify({"message": "Task added to queue"}), 202
-        elif event == 'issue_comment' and data['action'] == 'created':
+        elif event == 'issue_comment' and action == 'created':
             task_handle_issue_comment.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
@@ -91,7 +95,7 @@ def webhook():
                 comment=data['comment']
             )
             return jsonify({"message": "Task added to queue"}), 202
-        elif event == 'pull_request_review_comment' and data['action'] == 'created':
+        elif event == 'pull_request_review_comment' and action == 'created':
             task_handle_pr_review_comment.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
