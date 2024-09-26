@@ -5,29 +5,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    command: gunicorn --bind 0.0.0.0:8000 main:app
     ports:
       - "8000:8000"
-    depends_on:
-      - redis
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
       - FLASK_ENV=production
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
 
   celery_worker:
     build:
       context: .
       dockerfile: Dockerfile
     command: celery -A celery_tasks worker --loglevel=info
-    depends_on:
-      - redis
     environment:
-      - REDIS_HOST=redis
-      - REDIS_PORT=6379
-      - REDIS_DB=0
-
-  redis:
-    image: bitnami/redis:latest
-    environment:
-      - ALLOW_EMPTY_PASSWORD=yes
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0

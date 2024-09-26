@@ -23,9 +23,3 @@ RUN git --version
 
 # Copy the rest of the application code
 COPY . .
-
-# Make port 8000 available to the world outside this container
-EXPOSE 8000
-
-# Run main.py when the container launches with Gunicorn configuration
-CMD ["gunicorn", "--bind", "0.0.0.0:8000", "--workers", "4", "--timeout", "300", "--worker-class", "sync", "--access-logfile", "-", "--error-logfile", "-", "main:app"]
