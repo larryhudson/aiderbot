@@ -29,29 +29,6 @@ from celery import Celery
 import github_api
 import git_commands
 import aider_coder
-from functools import wraps
-from contextlib import contextmanager
-from io import StringIO
-import sys
-
-
-@contextmanager
-def redirect_stdout():
-    string_io = StringIO()
-    string_io.encoding = 'utf-8'
-    old_stdout = sys.stdout
-    sys.stdout = string_io
-    try:
-        yield string_io
-    finally:
-        sys.stdout = old_stdout
-
-def stdout_redirected_task(func):
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        with redirect_stdout():
-            return func(*args, **kwargs)
-    return wrapper
 
 # Celery configuration
 # This will use the REDIS_URL from the environment variables
@@ -297,7 +274,6 @@ def extract_files_list_from_issue(issue_body):
     return files_list
 
 @app.task
-@stdout_redirected_task
 def task_create_pull_request_for_issue(token, owner, repo_name, issue, comments=None):
     logger.info(f"Starting task_create_pull_request_for_issue for issue #{issue['number']} in {owner}/{repo_name}")
     try:
@@ -309,7 +285,6 @@ def task_create_pull_request_for_issue(token, owner, repo_name, issue, comments=
         raise
 
 @app.task
-@stdout_redirected_task
 def task_handle_pr_review_comment(token, owner, repo_name, pull_request, comment):
     logger.info(f"Starting task_handle_pr_review_comment for PR #{pull_request['number']} in {owner}/{repo_name}")
     try:
@@ -321,7 +296,6 @@ def task_handle_pr_review_comment(token, owner, repo_name, pull_request, comment
         raise
 
 @app.task
-@stdout_redirected_task
 def task_handle_issue_comment(token, owner, repo_name, issue, comment):
     logger.info(f"Starting task_handle_issue_comment for issue #{issue['number']} in {owner}/{repo_name}")
     try:
