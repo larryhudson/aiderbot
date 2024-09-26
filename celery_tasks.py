@@ -275,7 +275,14 @@ def extract_files_list_from_issue(issue_body):
 
 @app.task
 def task_create_pull_request_for_issue(token, owner, repo_name, issue, comments=None):
-    return create_pull_request_for_issue(token=token, owner=owner, repo_name=repo_name, issue=issue, comments=comments)
+    logger.info(f"Starting task_create_pull_request_for_issue for issue #{issue['number']} in {owner}/{repo_name}")
+    try:
+        result = create_pull_request_for_issue(token=token, owner=owner, repo_name=repo_name, issue=issue, comments=comments)
+        logger.info(f"Completed task_create_pull_request_for_issue for issue #{issue['number']} with result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in task_create_pull_request_for_issue for issue #{issue['number']}: {str(e)}")
+        raise
 
 @app.task
 def task_handle_pr_review_comment(token, owner, repo_name, pull_request, comment):
@@ -290,4 +297,11 @@ def task_handle_pr_review_comment(token, owner, repo_name, pull_request, comment
 
 @app.task
 def task_handle_issue_comment(token, owner, repo_name, issue, comment):
-    return handle_issue_comment(token=token, owner=owner, repo_name=repo_name, issue=issue, comment=comment)
+    logger.info(f"Starting task_handle_issue_comment for issue #{issue['number']} in {owner}/{repo_name}")
+    try:
+        result = handle_issue_comment(token=token, owner=owner, repo_name=repo_name, issue=issue, comment=comment)
+        logger.info(f"Completed task_handle_issue_comment for issue #{issue['number']} with result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in task_handle_issue_comment for issue #{issue['number']}: {str(e)}")
+        raise
