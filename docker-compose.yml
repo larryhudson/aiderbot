@@ -12,6 +12,8 @@ services:
       - FLASK_ENV=production
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    volumes:
+      - /root/github-private-key:/app/github-private-key
 
   celery_worker:
     build:
@@ -21,3 +23,5 @@ services:
     environment:
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+    volumes:
+      - /root/github-private-key:/app/github-private-key
