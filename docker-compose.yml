@@ -14,6 +14,8 @@ services:
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     volumes:
       - /root/github-private-key:/app/github-private-key
+    depends_on:
+      - redis
 
   celery_worker:
     build:
@@ -25,3 +27,8 @@ services:
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
     volumes:
       - /root/github-private-key:/app/github-private-key
+    depends_on:
+      - redis
+
+  redis:
+    image: redis:alpine
