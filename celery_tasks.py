@@ -32,16 +32,13 @@ import aider_coder
 
 # Celery configuration
 # This will use the REDIS_URL from the environment variables
-REDIS_HOST = os.getenv('REDIS_HOST', 'redis')
-REDIS_PORT = os.getenv('REDIS_PORT', '6379')
-REDIS_DB = os.getenv('REDIS_DB', '0')
+CELERY_BROKER_URL = os.getenv('CELERY_BROKER_URL', 'redis://redis:6379/0')
+CELERY_RESULT_BACKEND = os.getenv('CELERY_RESULT_BACKEND', 'redis://redis:6379/0')
 
-REDIS_URL = f'redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}'
-
-app = Celery('tasks', broker=REDIS_URL, backend=REDIS_URL)
+app = Celery('tasks', broker=CELERY_BROKER_URL, backend=CELERY_RESULT_BACKEND)
 
 # Log the REDIS_URL being used
-logger.info(f"Using REDIS_URL: {REDIS_URL}")
+logger.info(f"Using CELERY_BROKER_URL: {CELERY_BROKER_URL}")
 
 # GitHub App configuration
 APP_USER_NAME = os.getenv('GITHUB_APP_USER_NAME', 'larryhudson-aider-github[bot]')
