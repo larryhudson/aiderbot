@@ -10,8 +10,8 @@ services:
       - "8000:8000"
     environment:
       - FLASK_ENV=production
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:redis://redis:6379/0}
 
   celery_worker:
     build:
@@ -19,5 +19,5 @@ services:
       dockerfile: Dockerfile
     command: celery -A celery_tasks worker --loglevel=info
     environment:
-      - CELERY_BROKER_URL=redis://redis:6379/0
-      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - CELERY_BROKER_URL=${CELERY_BROKER_URL:redis://redis:6379/0}
+      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND:redis://redis:6379/0}
