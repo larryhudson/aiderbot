@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.12-slim-bullseye
+FROM python:3.12-bookworm
 
 # This Dockerfile can be built with:
 # docker build -t myapp:v1.0 .
