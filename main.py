@@ -79,6 +79,7 @@ def webhook():
             return jsonify({"error": "Failed to get GitHub token"}), 500
 
         if event == 'issues' and action == 'opened':
+            logger.info("Adding task to queue to create pull request for issue")
             task_create_pull_request_for_issue.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
@@ -87,6 +88,7 @@ def webhook():
             )
             return jsonify({"message": "Task added to queue"}), 202
         elif event == 'issue_comment' and action == 'created':
+            logger.info("Adding task to queue to handle issue comment")
             task_handle_issue_comment.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
@@ -96,6 +98,8 @@ def webhook():
             )
             return jsonify({"message": "Task added to queue"}), 202
         elif event == 'pull_request_review_comment' and action == 'created':
+
+            logger.info("Adding task to queue to handle PR review comment")
             task_handle_pr_review_comment.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
