@@ -98,18 +98,21 @@ def webhook():
             )
             return jsonify({"message": "Task added to queue"}), 202
         elif event == 'pull_request_review_comment' and action == 'created':
-
             logger.info("Adding task to queue to handle PR review comment")
-            task_handle_pr_review_comment.delay(
+            task = task_handle_pr_review_comment.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
                 repo_name=data['repository']['name'],
                 pull_request=data['pull_request'],
                 comment=data['comment']
             )
-            return jsonify({"message": "Task added to queue"}), 202
+            logger.info(f"Task added to queue with ID: {task.id}")
+            return jsonify({"message": "Task added to queue", "task_id": task.id}), 202
+        elif event == 'pull_request_review' and action == 'submitted':
+            logger.info("Received pull_request_review event, but it's not handled yet")
+            return jsonify({"message": "Received pull_request_review event"}), 200
         else:
-            logger.info("Event is not handled, ignoring")
+            logger.info(f"Event {event} with action {action} is not handled, ignoring")
             return jsonify({"message": "Received"}), 200
     except Exception as e:
         logger.error(f"An error occurred in webhook handler: {str(e)}")

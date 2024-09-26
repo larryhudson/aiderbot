@@ -279,7 +279,14 @@ def task_create_pull_request_for_issue(token, owner, repo_name, issue, comments=
 
 @app.task
 def task_handle_pr_review_comment(token, owner, repo_name, pull_request, comment):
-    return handle_pr_review_comment(token=token, owner=owner, repo_name=repo_name, pull_request=pull_request, comment=comment)
+    logger.info(f"Starting task_handle_pr_review_comment for PR #{pull_request['number']} in {owner}/{repo_name}")
+    try:
+        result = handle_pr_review_comment(token=token, owner=owner, repo_name=repo_name, pull_request=pull_request, comment=comment)
+        logger.info(f"Completed task_handle_pr_review_comment for PR #{pull_request['number']} with result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error in task_handle_pr_review_comment for PR #{pull_request['number']}: {str(e)}")
+        raise
 
 @app.task
 def task_handle_issue_comment(token, owner, repo_name, issue, comment):
