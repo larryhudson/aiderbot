@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import re
 import git
+import time
 
 # Set up logging
 logging.basicConfig(
@@ -47,7 +48,7 @@ ALLOWED_USERNAME = os.getenv('ALLOWED_USERNAME')
 def is_aiderbot_mentioned(text):
     return "@aiderbot" in text.lower()
 
-def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=None):
+def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=None, start_time=None):
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
 
     if not comments:
@@ -113,13 +114,17 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
 
         logger.info(f"Pull request created: {pr['html_url']}")
 
-        comment_body = f"I've created a pull request to address this issue: {pr['html_url']}"
+        end_time = time.time()
+        elapsed_time = end_time - start_time if start_time else None
+        time_info = f"\n\nTime taken to create this PR: {elapsed_time:.2f} seconds" if elapsed_time else ""
+        
+        comment_body = f"I've created a pull request to address this issue: {pr['html_url']}{time_info}"
         logger.info("Adding comment to the issue")
         github_api.create_issue_comment(token, owner, repo_name, issue['number'], comment_body)
         github_api.delete_issue_reaction(token, owner, repo_name, issue['number'], eyes_reaction_id)
         github_api.create_issue_reaction(token, owner, repo_name, issue['number'], "rocket")
 
-        return {"message": f"Pull request created and issue commented: {pr['html_url']}"}, 200
+        return {"message": f"Pull request created and issue commented: {pr['html_url']}", "elapsed_time": elapsed_time}, 200
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
@@ -274,10 +279,10 @@ def extract_files_list_from_issue(issue_body):
     return files_list
 
 @app.task
-def task_create_pull_request_for_issue(token, owner, repo_name, issue, comments=None):
+def task_create_pull_request_for_issue(token, owner, repo_name, issue, comments=None, start_time=None):
     logger.info(f"Starting task_create_pull_request_for_issue for issue #{issue['number']} in {owner}/{repo_name}")
     try:
-        result = create_pull_request_for_issue(token=token, owner=owner, repo_name=repo_name, issue=issue, comments=comments)
+        result = create_pull_request_for_issue(token=token, owner=owner, repo_name=repo_name, issue=issue, comments=comments, start_time=start_time)
         logger.info(f"Completed task_create_pull_request_for_issue for issue #{issue['number']} with result: {result}")
         return result
     except Exception as e:

@@ -8,6 +8,7 @@ import os
 import logging
 import github_api
 import subprocess
+import time
 from celery_tasks import task_create_pull_request_for_issue, task_handle_pr_review_comment, task_handle_issue_comment
 
 def has_multiple_commits(repo_dir, branch_name):
@@ -80,11 +81,13 @@ def webhook():
 
         if event == 'issues' and action == 'opened':
             logger.info("Adding task to queue to create pull request for issue")
+            start_time = time.time()
             task_create_pull_request_for_issue.delay(
                 token=token,
                 owner=data['repository']['owner']['login'],
                 repo_name=data['repository']['name'],
-                issue=data['issue']
+                issue=data['issue'],
+                start_time=start_time
             )
             return jsonify({"message": "Task added to queue"}), 202
         elif event == 'issue_comment' and action == 'created':
