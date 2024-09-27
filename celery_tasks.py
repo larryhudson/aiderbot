@@ -8,6 +8,8 @@ import shutil
 import subprocess
 import re
 import git
+import requests
+from bs4 import BeautifulSoup
 
 # Set up logging
 logging.basicConfig(
@@ -70,8 +72,17 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
 
         files_list = extract_files_list_from_issue(issue['body'])
 
+        # Check for URLs in the issue body
+        urls = re.findall(r'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\\(\\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+', issue['body'])
+        url_content = ""
+        if urls:
+            url_content = fetch_url_content(urls[0])
+
         # Prepare the prompt
         issue_pr_prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue['title']}\n\nIssue Body: {issue['body']}"
+        
+        if url_content:
+            issue_pr_prompt += f"\n\nContent from URL:\n{url_content}"
         
         if comments:
             issue_pr_prompt += "\n\nComments:\n"
@@ -272,6 +283,21 @@ def extract_files_list_from_issue(issue_body):
             else:
                 break
     return files_list
+
+def fetch_url_content(url):
+    try:
+        response = requests.get(url)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Extract text content from the page
+        text_content = soup.get_text(separator='\n', strip=True)
+        
+        # Limit the content to a reasonable length (e.g., first 1000 characters)
+        return text_content[:1000]
+    except Exception as e:
+        logger.error(f"Error fetching URL content: {str(e)}")
+        return f"Error fetching URL content: {str(e)}"
 
 @app.task
 def task_create_pull_request_for_issue(token, owner, repo_name, issue, comments=None):
