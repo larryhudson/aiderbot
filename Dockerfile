@@ -13,8 +13,10 @@ RUN apt-get update && apt-get install -y git && apt-get clean && rm -rf /var/lib
 ENV GIT_PYTHON_GIT_EXECUTABLE=/usr/bin/git
 
 # Set Git username from environment variable
-ARG GIT_COMMIT_AUTHOR
-RUN git config --global user.name "${GIT_COMMIT_AUTHOR}"
+ARG GIT_COMMIT_AUTHOR_NAME
+ARG GIT_COMMIT_AUTHOR_EMAIL
+RUN git config --global user.name "${GIT_COMMIT_AUTHOR_NAME}"
+RUN git config --global user.email "${GIT_COMMIT_AUTHOR_EMAIL}"
 
 # Copy requirements.txt first to leverage Docker cache
 COPY requirements.txt .

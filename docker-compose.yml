@@ -6,7 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - GIT_COMMIT_AUTHOR=${GIT_COMMIT_AUTHOR}
+        - GIT_COMMIT_AUTHOR_NAME=${GIT_COMMIT_AUTHOR_NAME}
+        - GIT_COMMIT_AUTHOR_EMAIL=${GIT_COMMIT_AUTHOR_EMAIL}
     command: gunicorn --bind 0.0.0.0:8000 main:app
     ports:
       - "8001:8000"
@@ -14,7 +15,8 @@ services:
       - FLASK_ENV=production
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - GIT_COMMIT_AUTHOR=${GIT_COMMIT_AUTHOR}
+      - GIT_COMMIT_AUTHOR_NAME=${GIT_COMMIT_AUTHOR_NAME}
+      - GIT_COMMIT_AUTHOR_EMAIL=${GIT_COMMIT_AUTHOR_EMAIL}
     volumes:
       - /root/github-private-key:/app/github-private-key
     depends_on:
@@ -25,12 +27,14 @@ services:
       context: .
       dockerfile: Dockerfile
       args:
-        - GIT_COMMIT_AUTHOR=${GIT_COMMIT_AUTHOR}
+        - GIT_COMMIT_AUTHOR_NAME=${GIT_COMMIT_AUTHOR_NAME}
+        - GIT_COMMIT_AUTHOR_EMAIL=${GIT_COMMIT_AUTHOR_EMAIL}
     command: celery -A celery_tasks worker --loglevel=debug
     environment:
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - GIT_COMMIT_AUTHOR=${GIT_COMMIT_AUTHOR}
+      - GIT_COMMIT_AUTHOR_NAME=${GIT_COMMIT_AUTHOR_NAME}
+      - GIT_COMMIT_AUTHOR_EMAIL=${GIT_COMMIT_AUTHOR_EMAIL}
     volumes:
       - /root/github-private-key:/app/github-private-key
     depends_on:
