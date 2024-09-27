@@ -82,7 +82,7 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
         issue_pr_prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue['title']}\n\nIssue Body: {issue['body']}"
         
         if url_content:
-            issue_pr_prompt += f"\n\nContent from URL:\n{url_content}"
+            issue_pr_prompt += f"\n\nContent from URL:\n{url_content}\n\nI have successfully read and processed the content from the provided URL. Here's a summary of what I found:"
         
         if comments:
             issue_pr_prompt += "\n\nComments:\n"
@@ -293,8 +293,17 @@ def fetch_url_content(url):
         # Extract text content from the page
         text_content = soup.get_text(separator='\n', strip=True)
         
-        # Limit the content to a reasonable length (e.g., first 1000 characters)
-        return text_content[:1000]
+        # Extract title
+        title = soup.title.string if soup.title else "No title found"
+        
+        # Extract meta description
+        meta_desc = soup.find('meta', attrs={'name': 'description'})
+        description = meta_desc['content'] if meta_desc else "No description found"
+        
+        # Combine the extracted information
+        content_summary = f"Title: {title}\n\nDescription: {description}\n\nContent Preview:\n{text_content[:500]}..."
+        
+        return content_summary
     except Exception as e:
         logger.error(f"Error fetching URL content: {str(e)}")
         return f"Error fetching URL content: {str(e)}"
