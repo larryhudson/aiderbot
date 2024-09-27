@@ -145,6 +145,7 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
 
 def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
     logger.info(f"Processing PR review comment for PR #{pull_request['number']} in {owner}/{repo_name}")
+    start_time = time.time()
 
     if not is_aiderbot_mentioned(comment['body']):
         logger.info(f"Ignoring PR review comment as @aiderbot was not mentioned")
@@ -208,12 +209,18 @@ def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
 
         pr_comment_body = f"I've updated the PR based on the review comment.\n\n{coding_result['summary']}"
 
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        time_info = f"\n\nTime taken to process this PR review comment: {elapsed_time:.2f} seconds"
+        
+        pr_comment_body += time_info
+
         github_api.reply_to_pr_review_comment(token, owner, repo_name, pull_request['number'], pr_review_comment_id, pr_comment_body)
 
         github_api.delete_pr_review_comment_reaction(token, owner, repo_name, pr_review_comment_id, eyes_reaction_id)
         github_api.create_pr_review_comment_reaction(token, owner, repo_name, pr_review_comment_id, "rocket")
 
-        return {"message": "PR updated based on review comment", "commit_message": coding_result['commit_message']}, 200
+        return {"message": "PR updated based on review comment", "commit_message": coding_result['commit_message'], "elapsed_time": elapsed_time}, 200
 
     except Exception as e:
         logger.error(f"An error occurred: {str(e)}")
@@ -221,11 +228,15 @@ def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
         error_traceback = traceback.format_exc()
         logger.error(f"Full traceback:\n{error_traceback}")
         
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+        time_info = f"\n\nTime taken before error occurred: {elapsed_time:.2f} seconds"
+        
         # Reply to the PR review comment about the error
-        error_comment = f"An error occurred while processing this PR review comment:\n\n```\n{str(e)}\n\n{error_traceback}\n```"
+        error_comment = f"An error occurred while processing this PR review comment:\n\n```\n{str(e)}\n\n{error_traceback}\n```{time_info}"
         github_api.reply_to_pr_review_comment(token, owner, repo_name, pull_request['number'], comment['id'], error_comment)
         
-        return {"error": f"An internal error occurred: {str(e)}"}, 500
+        return {"error": f"An internal error occurred: {str(e)}", "elapsed_time": elapsed_time}, 500
 
     finally:
         # Clean up the temporary directory
