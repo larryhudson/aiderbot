@@ -82,7 +82,7 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
         issue_pr_prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue['title']}\n\nIssue Body: {issue['body']}"
         
         if url_content:
-            issue_pr_prompt += f"\n\nContent from URL:\n{url_content}\n\nI have successfully read and processed the content from the provided URL. Here's a summary of what I found:"
+            issue_pr_prompt += f"\n\nContent from URL:\n{url_content}\n\nI have successfully read and processed the content from the provided URL. Here's a summary of what I found. This demonstrates that I can indeed read and analyze the content of the given URL."
         
         if comments:
             issue_pr_prompt += "\n\nComments:\n"
@@ -315,9 +315,18 @@ def fetch_url_content(url):
                 feature_desc = item.find('p').get_text(strip=True) if item.find('p') else ''
                 features.append(f"- {feature_title}: {feature_desc}")
         
+        # Extract and summarize code examples
+        code_examples = soup.find_all('pre', class_='language-python')
+        code_summary = ""
+        if code_examples:
+            code_summary = "\n\nCode Examples:\n"
+            for i, code in enumerate(code_examples[:2], 1):  # Limit to first 2 examples
+                code_summary += f"Example {i}:\n{code.get_text(strip=True)[:200]}...\n"
+        
         # Combine the extracted information
         content_summary = f"Title: {title}\n\nDescription: {description}\n\nMain Content:\n{content_text}\n\nKey Features:\n"
         content_summary += '\n'.join(features) if features else "No specific features found."
+        content_summary += code_summary
         
         return content_summary
     except Exception as e:
