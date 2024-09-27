@@ -8,8 +8,8 @@ FROM python:3.12-bookworm
 # Set the working directory in the container
 WORKDIR /app
 
-# Install git and set up environment
-RUN apt-get update && apt-get install -y git && apt-get clean && rm -rf /var/lib/apt/lists/*
+# Install git, pandoc, and set up environment
+RUN apt-get update && apt-get install -y git pandoc && apt-get clean && rm -rf /var/lib/apt/lists/*
 ENV GIT_PYTHON_GIT_EXECUTABLE=/usr/bin/git
 
 # Set Git username from environment variable
