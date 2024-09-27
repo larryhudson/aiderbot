@@ -2,6 +2,18 @@
 
 This GitHub App uses [Aider](https://aider.chat/) and [Claude 3.5 Sonnet](https://www.anthropic.com/news/claude-3-5-sonnet) to automatically create pull requests to resolve issues and respond to pull request review comments.
 
+## About the Creator
+
+This GitHub App was created by Larry Hudson, a web developer based in Melbourne, Australia. Larry specializes in building accessible web applications and has a particular interest in assistive technologies.
+
+Key points about Larry:
+- Experienced in Python, JavaScript, and web development frameworks
+- Passionate about web accessibility and inclusive design
+- Works on projects that combine web development with artificial intelligence
+- Maintains a blog where he shares insights on web development and accessibility
+
+For more information about Larry and his work, visit his website: [https://larryhudson.io/](https://larryhudson.io/)
+
 ## How it works
 
 This GitHub App automates the process of addressing issues and responding to pull request review comments. Here's an overview of how it works:
