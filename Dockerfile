@@ -24,6 +24,9 @@ COPY requirements.txt .
 # Install any needed packages specified in requirements.txt
 RUN pip install -r requirements.txt
 
+# Install Playwright with Chromium
+RUN python -m playwright install --with-deps chromium
+
 # Verify git installation
 RUN git --version
 
