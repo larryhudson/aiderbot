@@ -44,6 +44,8 @@ def verify_webhook_signature(payload_body, signature_header):
     result = hmac.compare_digest(expected_signature, signature_header)
     return result
 
+# Remove the ALLOWED_USERNAME check from this file as it's no longer needed
+
 @app.route('/', methods=['GET'])
 def index():
     return jsonify({"message": "Hello, World!"})
