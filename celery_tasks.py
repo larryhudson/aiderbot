@@ -290,9 +290,6 @@ def fetch_url_content(url):
         response.raise_for_status()
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Extract text content from the page
-        text_content = soup.get_text(separator='\n', strip=True)
-        
         # Extract title
         title = soup.title.string if soup.title else "No title found"
         
@@ -300,8 +297,27 @@ def fetch_url_content(url):
         meta_desc = soup.find('meta', attrs={'name': 'description'})
         description = meta_desc['content'] if meta_desc else "No description found"
         
+        # Extract main content
+        main_content = soup.find('main')
+        if main_content:
+            paragraphs = main_content.find_all('p')
+            content_text = '\n'.join([p.get_text() for p in paragraphs[:5]])  # Get first 5 paragraphs
+        else:
+            content_text = soup.get_text(separator='\n', strip=True)[:1000]  # Fallback to first 1000 characters
+        
+        # Extract features
+        features = []
+        feature_section = soup.find('section', class_='features')
+        if feature_section:
+            feature_items = feature_section.find_all('div', class_='feature')
+            for item in feature_items:
+                feature_title = item.find('h3').get_text(strip=True) if item.find('h3') else ''
+                feature_desc = item.find('p').get_text(strip=True) if item.find('p') else ''
+                features.append(f"- {feature_title}: {feature_desc}")
+        
         # Combine the extracted information
-        content_summary = f"Title: {title}\n\nDescription: {description}\n\nContent Preview:\n{text_content[:500]}..."
+        content_summary = f"Title: {title}\n\nDescription: {description}\n\nMain Content:\n{content_text}\n\nKey Features:\n"
+        content_summary += '\n'.join(features) if features else "No specific features found."
         
         return content_summary
     except Exception as e:
