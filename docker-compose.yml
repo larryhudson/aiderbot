@@ -29,7 +29,7 @@ services:
       args:
         - GIT_COMMIT_AUTHOR_NAME=${GIT_COMMIT_AUTHOR_NAME}
         - GIT_COMMIT_AUTHOR_EMAIL=${GIT_COMMIT_AUTHOR_EMAIL}
-    command: celery -A celery_tasks worker --loglevel=debug
+    command: celery -A celery_tasks worker --loglevel=info
     environment:
       - CELERY_BROKER_URL=${CELERY_BROKER_URL}
       - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
