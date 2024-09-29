@@ -36,6 +36,7 @@ Before setting up the GitHub App, ensure you have the following:
 
 - GitHub account
 - Docker - e.g. [Docker Desktop](https://www.docker.com/products/docker-desktop/), [OrbStack for macOS](https://orbstack.dev/)
+- Node.js and NPM - for running the Smee webhook server in local development
 - Anthropic API token for Claude 3.5 model
 - macOS Sonoma 14.3.1 or later (Note: This has been tested on macOS, but should work on other operating systems)
 
@@ -70,6 +71,7 @@ Follow these steps to set up and run the GitHub App, and get the webhook server 
      - `GITHUB_APP_ID`: App ID at the top of the app settings
      - `GITHUB_PRIVATE_KEY_PATH`: relative path to .pem file (e.g., 'private-key.pem')
      - `GITHUB_APP_USER_NAME`: the 'name' of your GitHub app, followed by '[bot]'
+     - `GIT_COMMIT_AUTHOR_NAME` and `GIT_COMMIT_AUTHOR_EMAIL`: your details which will be used in Aider's commits. You can find your public-facing GitHub email address in the [GitHub settings](https://github.com/settings/emails).
 
 5. **Install the App:**
    - In the left sidebar of the app settings, click 'Install App'
