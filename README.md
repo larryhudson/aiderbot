@@ -28,6 +28,10 @@ This automated workflow helps streamline the process of addressing issues and in
 
 To trigger the bot's action, you need to mention "@aiderbot" in the issue title or body, or in the pull request review comment. This ensures that the bot only responds when explicitly called upon.
 
+## Celery Task Queue
+
+The application uses Celery, a distributed task queue, to manage and execute code analysis and modification tasks asynchronously. This allows the app to handle multiple requests simultaneously and remain responsive while time-consuming tasks are processed in the background.
+
 This is an experiment and is still in early development, so expect bugs!
 
 ## Prerequisites
