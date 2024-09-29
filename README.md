@@ -74,7 +74,7 @@ Follow these steps to set up and run the GitHub App, and get the webhook server 
      - `GITHUB_WEBHOOK_SECRET`: the 'Webhook secret' string you generated
      - `GITHUB_APP_ID`: App ID at the top of the app settings
      - `GITHUB_PRIVATE_KEY_PATH`: relative path to .pem file (e.g., 'private-key.pem')
-     - `GITHUB_APP_USER_NAME`: 'Aiderbot[bot]'
+     - `GITHUB_APP_USER_NAME`: The name of your GitHub app, followed by '[bot]' (e.g., 'MyCustomAiderbot[bot]')
      - `GIT_COMMIT_AUTHOR_NAME` and `GIT_COMMIT_AUTHOR_EMAIL`: your details which will be used in Aider's commits. You can find your public-facing GitHub email address in the [GitHub settings](https://github.com/settings/emails).
      - `CONVENTIONS_FILE_PATH`: (Optional) Set this to the path of a Markdown file within your repository that contains project-specific coding conventions. If set, Aider will use these conventions when making coding changes.
 
