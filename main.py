@@ -11,6 +11,16 @@ import subprocess
 import time
 from celery_tasks import task_create_pull_request_for_issue, task_handle_pr_review_comment, task_handle_issue_comment
 
+def create_initial_comment(token, owner, repo_name, issue_number):
+    """Create an initial comment on the issue."""
+    body = "Task has been added to the queue. We'll update this comment as we progress."
+    return github_api.create_issue_comment(token, owner, repo_name, issue_number, body)
+
+def update_comment_status(token, owner, repo_name, comment_id, status):
+    """Update the comment with the current status."""
+    body = f"Status: {status}\n\nWe'll update this comment as we progress."
+    github_api.update_issue_comment(token, owner, repo_name, comment_id, body)
+
 def has_multiple_commits(repo_dir, branch_name):
     """Check if the branch has more than one commit."""
     command = ['git', 'rev-list', '--count', f'origin/main..{branch_name}']
@@ -82,16 +92,25 @@ def webhook():
             return jsonify({"error": "Failed to get GitHub token"}), 500
 
         if event == 'issues' and action == 'opened':
-            logger.info("Adding task to queue to create pull request for issue")
+            logger.info("Creating initial comment and adding task to queue to create pull request for issue")
+            owner = data['repository']['owner']['login']
+            repo_name = data['repository']['name']
+            issue_number = data['issue']['number']
+            
+            # Create initial comment
+            comment = create_initial_comment(token, owner, repo_name, issue_number)
+            comment_id = comment['id']
+            
             start_time = time.time()
             task_create_pull_request_for_issue.delay(
                 token=token,
-                owner=data['repository']['owner']['login'],
-                repo_name=data['repository']['name'],
+                owner=owner,
+                repo_name=repo_name,
                 issue=data['issue'],
-                start_time=start_time
+                start_time=start_time,
+                comment_id=comment_id
             )
-            return jsonify({"message": "Task added to queue"}), 202
+            return jsonify({"message": "Initial comment created and task added to queue"}), 202
         elif event == 'issue_comment' and action == 'created':
             logger.info("Adding task to queue to handle issue comment")
             task_handle_issue_comment.delay(
