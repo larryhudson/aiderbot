@@ -78,6 +78,7 @@ Follow these steps to set up and run the GitHub App, and get the webhook server 
    - If you want Aider to follow specific coding conventions for your project, create a Markdown file in your repository (e.g., `CONVENTIONS.md`).
    - In this file, describe your project's coding standards, best practices, and any other guidelines you want Aider to follow.
    - Set the `CONVENTIONS_FILE_PATH` environment variable to the path of this file relative to your repository root.
+   - You can look at the `CONVENTIONS.md` file in this repository as an example of how to structure your project-specific conventions.
 
 6. **Install the App:**
    - In the left sidebar of the app settings, click 'Install App'
