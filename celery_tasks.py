@@ -9,6 +9,7 @@ import subprocess
 import re
 import git
 import time
+from pathlib import Path
 
 # Set up logging
 logging.basicConfig(
@@ -71,6 +72,15 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
 
         files_list = extract_files_list_from_issue(issue['body'])
 
+        # Check for conventions file
+        conventions_file_path = os.getenv('CONVENTIONS_FILE_PATH')
+        conventions_file = None
+        if conventions_file_path:
+            full_conventions_path = Path(repo_dir) / conventions_file_path
+            if full_conventions_path.exists():
+                conventions_file = str(full_conventions_path)
+                logger.info(f"Found conventions file: {conventions_file}")
+
         # Prepare the prompt
         issue_pr_prompt = f"Please help me resolve this issue.\n\nIssue Title: {issue['title']}\n\nIssue Body: {issue['body']}"
         
@@ -79,7 +89,7 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
             for comment in comments:
                 issue_pr_prompt += f"\n- {comment['body']}"
 
-        coding_result = aider_coder.do_coding_request(issue_pr_prompt, files_list, repo_dir)
+        coding_result = aider_coder.do_coding_request(issue_pr_prompt, files_list, repo_dir, conventions_file)
 
         # Check if any changes were made
         current_commit_hash = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=repo_dir, capture_output=True, text=True, check=True).stdout.strip()

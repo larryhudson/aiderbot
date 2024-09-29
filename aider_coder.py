@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def do_coding_request(prompt, files_list, root_folder_path):
+def do_coding_request(prompt, files_list, root_folder_path, conventions_file=None):
     logger.info("Starting coding request")
     logger.info(f"Files List: {files_list}")
     
@@ -30,13 +30,19 @@ def do_coding_request(prompt, files_list, root_folder_path):
             full_file_paths.append(os.path.join(root_folder_path, file))
     io = InputOutput(yes=True)
     git_repo = GitRepo(io, full_file_paths, root_folder_path, models=model.commit_message_models())
-    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False)
+    
+    read_only_fnames = []
+    if conventions_file:
+        read_only_fnames.append(conventions_file)
+        logger.info(f"Added conventions file to read-only files: {conventions_file}")
+    
+    coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False, read_only_fnames=read_only_fnames)
 
     logger.info("Running coder with prompt")
     coder.run(prompt)
 
     summary_prompt = f"Thank you for making those changes. Can you please write a description of the changes that were made? This will be included in the pull request description. Do not include a message at the start of your response."
-    summary_coder = Coder.create(edit_format="ask", main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False, from_coder=coder)
+    summary_coder = Coder.create(edit_format="ask", main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False, from_coder=coder, read_only_fnames=read_only_fnames)
     summary = summary_coder.run(summary_prompt)
 
     logger.info("Coding request completed")
