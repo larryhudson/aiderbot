@@ -1,6 +1,6 @@
-# Aider GitHub App
+# Aiderbot
 
-This GitHub App uses [Aider](https://aider.chat/) and [Claude 3.5 Sonnet](https://www.anthropic.com/news/claude-3-5-sonnet) to automatically create pull requests to resolve issues and respond to pull request review comments.
+Aiderbot is a GitHub App that uses [Aider](https://aider.chat/) and [Claude 3.5 Sonnet](https://www.anthropic.com/news/claude-3-5-sonnet) to automatically create pull requests to resolve issues and respond to pull request review comments.
 
 ## How it works
 
@@ -26,7 +26,7 @@ This GitHub App automates the process of addressing issues and responding to pul
 
 This automated workflow helps streamline the process of addressing issues and incorporating feedback, saving time for developers and maintainers.
 
-To trigger the bot's action, you need to mention "@aiderbot" in the issue title or body, or in the pull request review comment. This ensures that the bot only responds when explicitly called upon.
+To trigger Aiderbot's action, you need to mention "@Aiderbot" in the issue title or body, or in the pull request review comment. This ensures that Aiderbot only responds when explicitly called upon.
 
 ## Celery Task Queue
 
@@ -74,7 +74,7 @@ Follow these steps to set up and run the GitHub App, and get the webhook server 
      - `GITHUB_WEBHOOK_SECRET`: the 'Webhook secret' string you generated
      - `GITHUB_APP_ID`: App ID at the top of the app settings
      - `GITHUB_PRIVATE_KEY_PATH`: relative path to .pem file (e.g., 'private-key.pem')
-     - `GITHUB_APP_USER_NAME`: the 'name' of your GitHub app, followed by '[bot]'
+     - `GITHUB_APP_USER_NAME`: 'Aiderbot[bot]'
      - `GIT_COMMIT_AUTHOR_NAME` and `GIT_COMMIT_AUTHOR_EMAIL`: your details which will be used in Aider's commits. You can find your public-facing GitHub email address in the [GitHub settings](https://github.com/settings/emails).
      - `CONVENTIONS_FILE_PATH`: (Optional) Set this to the path of a Markdown file within your repository that contains project-specific coding conventions. If set, Aider will use these conventions when making coding changes.
 
