@@ -17,7 +17,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def do_coding_request(prompt, files_list, root_folder_path, conventions_content=None):
+def do_coding_request(prompt, files_list, root_folder_path, conventions_file=None):
     logger.info("Starting coding request")
     logger.info(f"Files List: {files_list}")
     
@@ -32,10 +32,7 @@ def do_coding_request(prompt, files_list, root_folder_path, conventions_content=
     git_repo = GitRepo(io, full_file_paths, root_folder_path, models=model.commit_message_models())
     
     read_only_fnames = []
-    if conventions_content:
-        conventions_file = os.path.join(root_folder_path, "CONVENTIONS.md")
-        with open(conventions_file, 'w') as f:
-            f.write(conventions_content)
+    if conventions_file:
         read_only_fnames.append(conventions_file)
         logger.info(f"Added conventions file to read-only files: {conventions_file}")
     
