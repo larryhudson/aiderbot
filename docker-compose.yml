@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   web:
     build:
@@ -8,37 +6,48 @@ services:
       args:
         - GIT_COMMIT_AUTHOR_NAME=${GIT_COMMIT_AUTHOR_NAME}
         - GIT_COMMIT_AUTHOR_EMAIL=${GIT_COMMIT_AUTHOR_EMAIL}
-    command: gunicorn --bind 0.0.0.0:8000 main:app
-    ports:
-      - "8001:8000"
+    image: github-app-aider
+    pull_policy: never
+    command: gunicorn --bind 0.0.0.0:8585 main:app
     environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
       - FLASK_ENV=production
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - GIT_COMMIT_AUTHOR_NAME=${GIT_COMMIT_AUTHOR_NAME}
-      - GIT_COMMIT_AUTHOR_EMAIL=${GIT_COMMIT_AUTHOR_EMAIL}
     volumes:
-      - /root/github-private-key:/app/github-private-key
+      - ./github-private-key.pem:/app/github-private-key.pem
+    ports:
+      - "8585:8585"
     depends_on:
       - redis
 
   celery_worker:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        - GIT_COMMIT_AUTHOR_NAME=${GIT_COMMIT_AUTHOR_NAME}
-        - GIT_COMMIT_AUTHOR_EMAIL=${GIT_COMMIT_AUTHOR_EMAIL}
+    image: github-app-aider
+    pull_policy: never
     command: celery -A celery_tasks worker --loglevel=info
     environment:
-      - CELERY_BROKER_URL=${CELERY_BROKER_URL}
-      - CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
-      - GIT_COMMIT_AUTHOR_NAME=${GIT_COMMIT_AUTHOR_NAME}
-      - GIT_COMMIT_AUTHOR_EMAIL=${GIT_COMMIT_AUTHOR_EMAIL}
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
-      - /root/github-private-key:/app/github-private-key
+      - ./github-private-key.pem:/app/github-private-key.pem
     depends_on:
       - redis
+      - web
+
+  flower:
+    image: github-app-aider
+    pull_policy: never
+    command: celery -A celery_tasks flower --port=5555
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+    volumes:
+      - ./github-private-key.pem:/app/github-private-key.pem
+    ports:
+      - "5555:5555"
+    depends_on:
+      - redis
+      - celery_worker
 
   redis:
     image: redis:alpine

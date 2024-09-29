@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 # GitHub App configuration
 GITHUB_APP_ID = os.getenv('GITHUB_APP_ID')
-GITHUB_PRIVATE_KEY_PATH = os.getenv('GITHUB_PRIVATE_KEY_PATH', 'path/to/your/private-key.pem')
+GITHUB_PRIVATE_KEY_PATH = "/app/github-private-key.pem"
 # Read the private key from the PEM file
 with open(GITHUB_PRIVATE_KEY_PATH, 'r') as key_file:
     GITHUB_PRIVATE_KEY = key_file.read()

@@ -35,10 +35,8 @@ This is an experiment and is still in early development, so expect bugs!
 Before setting up the GitHub App, ensure you have the following:
 
 - GitHub account
-- Python (version 3.12.4 or later recommended)
-- Node.js (version 20.10.0 or later recommended) for Smee CLI
+- Docker - e.g. [Docker Desktop](https://www.docker.com/products/docker-desktop/), [OrbStack for macOS](https://orbstack.dev/)
 - Anthropic API token for Claude 3.5 model
-- Redis server (for Celery task queue)
 - macOS Sonoma 14.3.1 or later (Note: This has been tested on macOS, but should work on other operating systems)
 
 ## Setup instructions
@@ -49,11 +47,7 @@ Follow these steps to set up and run the GitHub App, and get the webhook server 
    ```
    git clone <repository-url>
    cd <repository-directory>
-   python -m venv venv
-   source venv/bin/activate  # On Windows, use `venv\Scripts\activate`
-   pip install -r requirements.txt
    ```
-
 2. **Set up a webhook URL with [Smee.io](https://smee.io/):**
    - Visit [Smee.io](https://smee.io/) and click "Start a new channel"
    - Keep this page open, you'll need the webhook URL in the next step
@@ -76,24 +70,15 @@ Follow these steps to set up and run the GitHub App, and get the webhook server 
      - `GITHUB_APP_ID`: App ID at the top of the app settings
      - `GITHUB_PRIVATE_KEY_PATH`: relative path to .pem file (e.g., 'private-key.pem')
      - `GITHUB_APP_USER_NAME`: the 'name' of your GitHub app, followed by '[bot]'
-     - `REDIS_URL`: URL for your Redis server (e.g., 'redis://localhost:6379/0')
 
 5. **Install the App:**
    - In the left sidebar of the app settings, click 'Install App'
    - Choose the repositories you want to enable it for
 
 6. **Run the application:**
-   - Start the Redis server:
+   - Build the Docker containers and run them:
      ```
-     redis-server
-     ```
-   - In a new terminal, start the Celery worker:
-     ```
-     celery -A celery_tasks worker --loglevel=info
-     ```
-   - In another terminal, start the Flask development server:
-     ```
-     python main.py
+     docker compose up -d
      ```
    - In a fourth terminal, start Smee to forward webhook requests:
      ```

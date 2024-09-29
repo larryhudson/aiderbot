@@ -1,5 +1,5 @@
 # Use an official Python runtime as a parent image
-FROM python:3.12-bookworm
+FROM python:3.12-slim-bullseye
 
 # This Dockerfile can be built with:
 # docker build -t myapp:v1.0 .
@@ -26,9 +26,6 @@ RUN pip install -r requirements.txt
 
 # Install Playwright with Chromium
 RUN python -m playwright install --with-deps chromium
-
-# Verify git installation
-RUN git --version
 
 # Copy the rest of the application code
 COPY . .
