@@ -31,6 +31,7 @@ from celery import Celery
 import github_api
 import git_commands
 import aider_coder
+import subprocess
 
 # Celery configuration
 # This will use the REDIS_URL from the environment variables
@@ -96,7 +97,7 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
 
         if current_commit_hash == initial_commit_hash:
             logger.info("No changes were made by Aider")
-            comment_body = f"I've analyzed the issue, but no changes were necessary. Here's a summary of my findings:\n\n{coding_result['summary']}"
+            comment_body = "I've analyzed the issue, but no changes were necessary."
             github_api.create_issue_comment(token, owner, repo_name, issue['number'], comment_body)
             github_api.delete_issue_reaction(token, owner, repo_name, issue['number'], eyes_reaction_id)
             return {"message": "No changes made, comment added to issue"}, 200
@@ -107,6 +108,12 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
 
         main_branch = github_api.get_default_branch(token, owner, repo_name)
 
+        # Get the git diff
+        git_diff = subprocess.run(['git', 'diff', initial_commit_hash, current_commit_hash], cwd=repo_dir, capture_output=True, text=True, check=True).stdout
+
+        # Generate summary using the new function
+        summary = aider_coder.generate_summary(issue['title'], issue['body'], git_diff, "")
+
         git_commands.push_changes_to_repository(temp_dir, branch_name)
 
         pr = github_api.create_pull_request(
@@ -114,7 +121,7 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
             owner,
             repo_name,
             f"Fix issue #{issue['number']}: {coding_result['commit_message']}",
-            f"This PR addresses the changes requested in issue #{issue['number']}\n\n{coding_result['summary']}",
+            f"This PR addresses the changes requested in issue #{issue['number']}\n\n{summary}",
             branch_name,
             main_branch
         )
