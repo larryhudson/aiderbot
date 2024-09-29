@@ -55,9 +55,9 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
             logger.info(f"Ignoring issue #{issue['number']} as @aiderbot was not mentioned")
             return {"message": "Issue ignored as @aiderbot was not mentioned"}, 200
 
-        user_permission = github_api.get_user_permission(token, owner, repo_name, issue['user']['login'])
-        if user_permission not in ['admin', 'write']:
-            logger.info(f"Ignoring issue from user without sufficient permissions: {issue['user']['login']}")
+        author_association = issue['author_association']
+        if author_association not in ['OWNER', 'MEMBER', 'COLLABORATOR']:
+            logger.info(f"Ignoring issue from user without sufficient permissions: {issue['user']['login']} (association: {author_association})")
             return {"message": "Issue from user without sufficient permissions ignored"}, 200
 
     # Create a temporary directory within the current working directory
@@ -157,9 +157,9 @@ def handle_pr_review_comment(*, token, owner, repo_name, pull_request, comment):
         return {"message": "Comment from app user ignored"}, 200
 
     # Check if the user has sufficient permissions
-    user_permission = github_api.get_user_permission(token, owner, repo_name, comment['user']['login'])
-    if user_permission not in ['admin', 'write']:
-        logger.info(f"Ignoring comment from user without sufficient permissions: {comment['user']['login']}")
+    author_association = comment['author_association']
+    if author_association not in ['OWNER', 'MEMBER', 'COLLABORATOR']:
+        logger.info(f"Ignoring comment from user without sufficient permissions: {comment['user']['login']} (association: {author_association})")
         return {"message": "Comment from user without sufficient permissions ignored"}, 200
 
     pr_review_comment_id = comment['id']
@@ -257,9 +257,9 @@ def handle_issue_comment(*, token, owner, repo_name, issue, comment):
         return {"message": "Comment from app user ignored"}, 200
 
     # Check if the user has sufficient permissions
-    user_permission = github_api.get_user_permission(token, owner, repo_name, comment['user']['login'])
-    if user_permission not in ['admin', 'write']:
-        logger.info(f"Ignoring comment from user without sufficient permissions: {comment['user']['login']}")
+    author_association = comment['author_association']
+    if author_association not in ['OWNER', 'MEMBER', 'COLLABORATOR']:
+        logger.info(f"Ignoring comment from user without sufficient permissions: {comment['user']['login']} (association: {author_association})")
         return {"message": "Comment from user without sufficient permissions ignored"}, 200
 
     # Check if there's already a pull request for this issue

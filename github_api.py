@@ -180,18 +180,6 @@ def delete_pr_review_comment_reaction(token, owner, repo, comment_id, reaction_i
         logger.error(f"Failed to delete PR review comment reaction: {response.text}")
         return False
 
-def get_user_permission(token, owner, repo, username):
-    url = f"https://api.github.com/repos/{owner}/{repo}/collaborators/{username}/permission"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    response = requests.get(url, headers=headers)
-    if response.status_code == 200:
-        return response.json()['permission']
-    else:
-        logger.error(f"Failed to get user permission: {response.text}")
-        return None
 
 def get_pull_requests_for_issue(token, owner, repo, issue_number):
     url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
