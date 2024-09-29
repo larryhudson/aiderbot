@@ -239,6 +239,19 @@ def get_pr_changed_files(token, owner, repo, pr_number):
         logger.error(f"Failed to get PR changed files: {response.text}")
         return []
 
+def get_commit_diff(token, owner, repo, base_sha, head_sha):
+    url = f"https://api.github.com/repos/{owner}/{repo}/compare/{base_sha}...{head_sha}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3.diff"
+    }
+    response = requests.get(url, headers=headers)
+    if response.status_code == 200:
+        return response.text
+    else:
+        logger.error(f"Failed to get commit diff: {response.text}")
+        return None
+
 def create_pr_comment(token, owner, repo, pr_number, body):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments"
     headers = {

@@ -5,6 +5,7 @@ from aider.coders import Coder
 from aider.models import Model
 from aider.io import InputOutput
 import logging
+from anthropic import Anthropic
 
 # Set up logging
 logging.basicConfig(
@@ -41,10 +42,6 @@ def do_coding_request(prompt, files_list, root_folder_path, conventions_file=Non
     logger.info("Running coder with prompt")
     coder.run(prompt)
 
-    summary_prompt = f"Thank you for making those changes. Can you please write a description of the changes that were made? This will be included in the pull request description. Do not include a message at the start of your response."
-    summary_coder = Coder.create(edit_format="ask", main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False, from_coder=coder, read_only_fnames=read_only_fnames)
-    summary = summary_coder.run(summary_prompt)
-
     logger.info("Coding request completed")
 
     # Get the last commit message
@@ -54,9 +51,37 @@ def do_coding_request(prompt, files_list, root_folder_path, conventions_file=Non
     logger.info(f"Commit message: {commit_message}")
 
     return {
-        'commit_message': commit_message,
-        'summary': summary
+        'commit_message': commit_message
     }
+
+def generate_summary(issue_title, issue_body, git_diff, aider_summary):
+    logger.info("Generating summary using Anthropic API")
+    
+    anthropic = Anthropic()
+    prompt = f"""
+    Please generate a descriptive summary for a pull request based on the following information:
+
+    Issue Title: {issue_title}
+    Issue Body: {issue_body}
+
+    Git Diff:
+    {git_diff}
+
+    Aider's Summary:
+    {aider_summary}
+
+    Your task is to create a concise yet informative summary that captures the essence of the changes made and their purpose. This summary will be added to the pull request description.
+    """
+
+    response = anthropic.completions.create(
+        model="claude-3-5-sonnet-20240620",
+        max_tokens_to_sample=500,
+        prompt=prompt
+    )
+
+    summary = response.completion.strip()
+    logger.info("Summary generation completed")
+    return summary
 
 
 def build_pr_review_prompt(issue, pr_diff, review_comment):
