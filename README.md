@@ -72,8 +72,14 @@ Follow these steps to set up and run the GitHub App, and get the webhook server 
      - `GITHUB_PRIVATE_KEY_PATH`: relative path to .pem file (e.g., 'private-key.pem')
      - `GITHUB_APP_USER_NAME`: the 'name' of your GitHub app, followed by '[bot]'
      - `GIT_COMMIT_AUTHOR_NAME` and `GIT_COMMIT_AUTHOR_EMAIL`: your details which will be used in Aider's commits. You can find your public-facing GitHub email address in the [GitHub settings](https://github.com/settings/emails).
+     - `CONVENTIONS_FILE_PATH`: (Optional) Set this to the path of a Markdown file within your repository that contains project-specific coding conventions. If set, Aider will use these conventions when making coding changes.
 
-5. **Install the App:**
+5. **Set up project-specific conventions (Optional):**
+   - If you want Aider to follow specific coding conventions for your project, create a Markdown file in your repository (e.g., `CONVENTIONS.md`).
+   - In this file, describe your project's coding standards, best practices, and any other guidelines you want Aider to follow.
+   - Set the `CONVENTIONS_FILE_PATH` environment variable to the path of this file relative to your repository root.
+
+6. **Install the App:**
    - In the left sidebar of the app settings, click 'Install App'
    - Choose the repositories you want to enable it for
 
