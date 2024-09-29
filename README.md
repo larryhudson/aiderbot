@@ -30,19 +30,7 @@ To trigger the bot's action, you need to mention "@aiderbot" in the issue title 
 
 ## Celery Task Queue
 
-The application uses Celery, a distributed task queue, to manage and execute the code analysis and modification tasks asynchronously. Here's how it works:
-
-1. **Task Creation**: When a new issue is created or a pull request review comment is added, the app creates a Celery task.
-
-2. **Task Queue**: The task is added to a Redis-backed queue, which allows for efficient task management and distribution.
-
-3. **Worker Processing**: Celery workers, running in separate Docker containers, pick up tasks from the queue and execute them. This includes cloning the repository, running the Aider analysis, and making code changes.
-
-4. **Asynchronous Execution**: By using Celery, the app can handle multiple requests simultaneously without blocking. This improves performance and allows the app to scale more easily.
-
-5. **Task Status and Results**: The app can track the status of tasks and retrieve results asynchronously, enabling it to provide updates on the progress of issue resolution or comment responses.
-
-This architecture ensures that the main application remains responsive while potentially time-consuming tasks are handled in the background.
+The application uses Celery, a distributed task queue, to manage and execute code analysis and modification tasks asynchronously. This allows the app to handle multiple requests simultaneously and remain responsive while time-consuming tasks are processed in the background.
 
 This is an experiment and is still in early development, so expect bugs!
 
