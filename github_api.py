@@ -114,6 +114,22 @@ def create_issue_comment(token, owner, repo, issue_number, body):
         logger.error(f"Failed to create issue comment: {response.text}")
         return None
 
+def update_issue_comment(token, owner, repo, comment_id, body):
+    url = f"https://api.github.com/repos/{owner}/{repo}/issues/comments/{comment_id}"
+    headers = {
+        "Authorization": f"token {token}",
+        "Accept": "application/vnd.github.v3+json"
+    }
+    data = {
+        "body": body
+    }
+    response = requests.patch(url, headers=headers, json=data)
+    if response.status_code == 200:
+        return response.json()
+    else:
+        logger.error(f"Failed to update issue comment: {response.text}")
+        return None
+
 def create_issue_reaction(token, owner, repo, issue_number, reaction):
     url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions"
     headers = {

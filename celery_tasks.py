@@ -48,7 +48,7 @@ APP_USER_NAME = os.getenv('GITHUB_APP_USER_NAME', 'larryhudson-aider-github[bot]
 def is_aiderbot_mentioned(text):
     return "@aiderbot" in text.lower()
 
-def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=None, start_time=None):
+def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=None, start_time=None, comment_id=None):
     logger.info(f"Processing issue #{issue['number']} for {owner}/{repo_name}")
 
     if not comments:
@@ -66,7 +66,7 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
     logger.info(f"Created temporary directory: {temp_dir}")
 
     try:
-        eyes_reaction_id = github_api.create_issue_reaction(token, owner, repo_name, issue['number'], "eyes")
+        github_api.update_comment_status(token, owner, repo_name, comment_id, "Working on the task")
 
         repo_dir, initial_commit_hash = git_commands.clone_repository(token, temp_dir, owner, repo_name)
 
@@ -129,9 +129,8 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
         time_info = f"\n\nTime taken to create this PR: {elapsed_time:.2f} seconds" if elapsed_time else ""
         
         comment_body = f"I've created a pull request to address this issue: {pr['html_url']}{time_info}"
-        logger.info("Adding comment to the issue")
-        github_api.create_issue_comment(token, owner, repo_name, issue['number'], comment_body)
-        github_api.delete_issue_reaction(token, owner, repo_name, issue['number'], eyes_reaction_id)
+        logger.info("Updating comment on the issue")
+        github_api.update_comment_status(token, owner, repo_name, comment_id, comment_body)
         github_api.create_issue_reaction(token, owner, repo_name, issue['number'], "rocket")
 
         return {"message": f"Pull request created and issue commented: {pr['html_url']}", "elapsed_time": elapsed_time}, 200
@@ -142,9 +141,9 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
         error_traceback = traceback.format_exc()
         logger.error(f"Full traceback:\n{error_traceback}")
         
-        # Post a comment about the error
+        # Update the comment about the error
         error_comment = f"An error occurred while processing this issue:\n\n```\n{str(e)}\n\n{error_traceback}\n```"
-        github_api.create_issue_comment(token, owner, repo_name, issue['number'], error_comment)
+        github_api.update_comment_status(token, owner, repo_name, comment_id, error_comment)
         
         return {"error": "An internal error occurred"}, 500
 
@@ -302,10 +301,10 @@ def extract_files_list_from_issue(issue_body):
     return files_list
 
 @app.task
-def task_create_pull_request_for_issue(token, owner, repo_name, issue, comments=None, start_time=None):
+def task_create_pull_request_for_issue(token, owner, repo_name, issue, comments=None, start_time=None, comment_id=None):
     logger.info(f"Starting task_create_pull_request_for_issue for issue #{issue['number']} in {owner}/{repo_name}")
     try:
-        result = create_pull_request_for_issue(token=token, owner=owner, repo_name=repo_name, issue=issue, comments=comments, start_time=start_time)
+        result = create_pull_request_for_issue(token=token, owner=owner, repo_name=repo_name, issue=issue, comments=comments, start_time=start_time, comment_id=comment_id)
         logger.info(f"Completed task_create_pull_request_for_issue for issue #{issue['number']} with result: {result}")
         return result
     except Exception as e:
