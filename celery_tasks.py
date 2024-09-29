@@ -97,9 +97,8 @@ def create_pull_request_for_issue(*, token, owner, repo_name, issue, comments=No
         if current_commit_hash == initial_commit_hash:
             logger.info("No changes were made by Aider")
             comment_body = f"I've analyzed the issue, but no changes were necessary. Here's a summary of my findings:\n\n{coding_result['summary']}"
-            github_api.create_issue_comment(token, owner, repo_name, issue['number'], comment_body)
-            github_api.delete_issue_reaction(token, owner, repo_name, issue['number'], eyes_reaction_id)
-            return {"message": "No changes made, comment added to issue"}, 200
+            github_api.update_comment_status(token, owner, repo_name, comment_id, comment_body)
+            return {"message": "No changes made, comment updated"}, 200
 
         # Changes were made, proceed with creating a PR
         branch_name = f"fix-issue-{issue['number']}"
