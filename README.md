@@ -8,21 +8,28 @@ This GitHub App automates the process of addressing issues and responding to pul
 
 1. It uses a webhook to listen for GitHub repository events:
    - When a new issue is created
+   - When a new issue comment is added
    - When a new pull request review comment is added
-   - The app 'reacts' to the new issue / pull request review comment with the 👀 reaction to show that it is working.
+   - When a pull request review is submitted (currently not handled, but logged)
 
-2. It clones the repository to a temporary directory:
-   - When an event is triggered, the app clones the repository to a temporary directory.
-   - It uses Aider to run an LLM (Language Model) prompt that analyzes the issue or review comment and makes the necessary changes to the code.
+2. When an event is triggered, the app processes the event asynchronously using Celery tasks:
+   - For new issues, it creates a pull request to resolve the issue
+   - For issue comments and pull request review comments, it handles them accordingly
 
-3. Using Aider, it attempts to resolve the issue by making code changes.
-   - It uses Aider's 'repo map' feature to choose which files it needs to edit.
-   - Aider automatically creates a commit for each change it makes.
+3. The app uses GitHub's API to interact with the repository:
+   - It creates pull requests
+   - It adds comments to issues and pull requests
+   - It adds reactions to issues and comments
 
-3. It pushes its changes to a new branch:
-   - After making changes, the app creates a new branch in the repository.
-   - It then pushes the new branch to GitHub.
-   - Then it creates an issue comment that describes the pull request.
+4. The app uses Aider to analyze the issue or review comment and make necessary changes to the code:
+   - It clones the repository to a temporary directory
+   - It uses Aider to run an LLM (Language Model) prompt that analyzes the issue or review comment and makes the necessary changes to the code
+   - Aider automatically creates commits for each change it makes
+
+5. After making changes, the app:
+   - Creates a new branch in the repository
+   - Pushes the new branch to GitHub
+   - Creates a pull request with the changes
 
 This automated workflow helps streamline the process of addressing issues and incorporating feedback, saving time for developers and maintainers.
 
@@ -31,6 +38,13 @@ To trigger Aiderbot's action, you need to mention "@Aiderbot" in the issue title
 ## Celery Task Queue
 
 The application uses Celery, a distributed task queue, to manage and execute code analysis and modification tasks asynchronously. This allows the app to handle multiple requests simultaneously and remain responsive while time-consuming tasks are processed in the background.
+
+The main tasks handled by Celery are:
+- Creating pull requests for issues
+- Handling issue comments
+- Handling pull request review comments
+
+This asynchronous processing ensures that the webhook endpoint can quickly acknowledge receipt of events and delegate the time-consuming work to background tasks.
 
 This is an experiment and is still in early development, so expect bugs!
 
