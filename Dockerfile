@@ -1,10 +1,6 @@
 # Use an official Python runtime as a parent image
 FROM python:3.12-slim-bullseye
 
-# This Dockerfile can be built with:
-# docker build -t myapp:v1.0 .
-# This will create an image named 'myapp' with tag 'v1.0'
-
 # Set the working directory in the container
 WORKDIR /app
 
@@ -15,6 +11,8 @@ ENV GIT_PYTHON_GIT_EXECUTABLE=/usr/bin/git
 # Set Git username from environment variable
 ARG GIT_COMMIT_AUTHOR_NAME
 ARG GIT_COMMIT_AUTHOR_EMAIL
+ENV GIT_COMMIT_AUTHOR_NAME=${GIT_COMMIT_AUTHOR_NAME}
+ENV GIT_COMMIT_AUTHOR_EMAIL=${GIT_COMMIT_AUTHOR_EMAIL}
 RUN git config --global user.name "${GIT_COMMIT_AUTHOR_NAME}"
 RUN git config --global user.email "${GIT_COMMIT_AUTHOR_EMAIL}"
 
@@ -29,3 +27,12 @@ RUN python -m playwright install --with-deps chromium
 
 # Copy the rest of the application code
 COPY . .
+
+# Set environment variables
+ENV FLASK_ENV=production
+ENV CELERY_BROKER_URL=${CELERY_BROKER_URL}
+ENV CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+ENV ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+
+# Run gunicorn
+CMD ["gunicorn", "--bind", "0.0.0.0:8585", "main:app"]
