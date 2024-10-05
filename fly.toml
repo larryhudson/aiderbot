@@ -7,17 +7,23 @@ primary_region = "syd"
 [env]
   FLASK_ENV = "production"
 
+[processes]
+  app = "gunicorn --bind 0.0.0.0:8585 main:app"
+  worker = "celery -A celery_tasks worker --loglevel=info"
+
 [http_service]
   internal_port = 8585
   force_https = true
   auto_stop_machines = true
   auto_start_machines = true
   min_machines_running = 1
+  processes = ["app"]
 
 [[vm]]
   cpu_kind = "shared"
   cpus = 1
   memory_mb = 256
+  processes = ["app", "worker"]
 
 [mounts]
   source = "github_private_key"
