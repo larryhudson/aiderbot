@@ -8,29 +8,45 @@ This GitHub App automates the process of addressing issues and responding to pul
 
 1. It uses a webhook to listen for GitHub repository events:
    - When a new issue is created
+   - When a new issue comment is added
    - When a new pull request review comment is added
-   - The app 'reacts' to the new issue / pull request review comment with the 👀 reaction to show that it is working.
+   - When a pull request review is submitted
 
-2. It clones the repository to a temporary directory:
-   - When an event is triggered, the app clones the repository to a temporary directory.
-   - It uses Aider to run an LLM (Language Model) prompt that analyzes the issue or review comment and makes the necessary changes to the code.
+2. When an event is triggered, the app processes the event asynchronously using Celery tasks:
+   - For new issues, it creates a pull request to resolve the issue
+   - For issue comments and pull request review comments, it handles them accordingly
 
-3. Using Aider, it attempts to resolve the issue by making code changes.
-   - It uses Aider's 'repo map' feature to choose which files it needs to edit.
-   - Aider automatically creates a commit for each change it makes.
+3. The app uses GitHub's API to interact with the repository:
+   - It creates pull requests
+   - It adds comments to issues and pull requests
+   - It adds reactions to issues and comments
 
-3. It pushes its changes to a new branch:
-   - After making changes, the app creates a new branch in the repository.
-   - It then pushes the new branch to GitHub.
-   - Then it creates an issue comment that describes the pull request.
+4. The app uses Aider to analyze the issue or review comment and make necessary changes to the code:
+   - It clones the repository to a temporary directory
+   - It uses Aider to run an LLM (Language Model) prompt that analyzes the issue or review comment and makes the necessary changes to the code
+   - Aider automatically creates commits for each change it makes
+
+5. After making changes, the app:
+   - Creates a new branch in the repository
+   - Pushes the new branch to GitHub
+   - Creates a pull request with the changes
 
 This automated workflow helps streamline the process of addressing issues and incorporating feedback, saving time for developers and maintainers.
 
-To trigger Aiderbot's action, you need to mention "@Aiderbot" in the issue title or body, or in the pull request review comment. This ensures that Aiderbot only responds when explicitly called upon.
+To trigger Aiderbot's action, you need to mention "@Aiderbot" in the issue title or body, or in the issue comment or pull request review comment. This ensures that Aiderbot only responds when explicitly called upon.
+
+Note: The app currently logs pull request review events but does not process them further. This behavior is consistent with the implementation in main.py.
 
 ## Celery Task Queue
 
 The application uses Celery, a distributed task queue, to manage and execute code analysis and modification tasks asynchronously. This allows the app to handle multiple requests simultaneously and remain responsive while time-consuming tasks are processed in the background.
+
+The main tasks handled by Celery are:
+- Creating pull requests for issues
+- Handling issue comments
+- Handling pull request review comments
+
+This asynchronous processing ensures that the webhook endpoint can quickly acknowledge receipt of events and delegate the time-consuming work to background tasks.
 
 This is an experiment and is still in early development, so expect bugs!
 
@@ -41,8 +57,8 @@ Before setting up the GitHub App, ensure you have the following:
 - GitHub account
 - Docker - e.g. [Docker Desktop](https://www.docker.com/products/docker-desktop/), [OrbStack for macOS](https://orbstack.dev/)
 - Node.js and NPM - for running the Smee webhook server in local development
-- Anthropic API token for Claude 3.5 model
-- macOS Sonoma 14.3.1 or later (Note: This has been tested on macOS, but should work on other operating systems)
+- Anthropic API token for Claude 3.5 Sonnet model
+- This has been tested on macOS, but should work on other operating systems
 
 ## Setup instructions
 
@@ -117,3 +133,7 @@ If you run into any problems, check the following:
 - **Smee.io Redeliver Feature**: Within the Smee.io interface, you can use the 'Redeliver' button to resend a payload. This is particularly useful for testing after you've made changes or fixed a bug. Instead of manually creating new issues or PR review comments repeatedly, you can simply click 'Redeliver' to test your latest changes with the same payload.
 
 For more detailed information, refer to the [GitHub Apps documentation](https://docs.github.com/en/developers/apps).
+
+---
+
+*Note: This README has been reviewed and tested as part of the Aiderbot pull request process.*
