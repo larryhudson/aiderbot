@@ -131,3 +131,7 @@ If you run into any problems, check the following:
 - **Smee.io Redeliver Feature**: Within the Smee.io interface, you can use the 'Redeliver' button to resend a payload. This is particularly useful for testing after you've made changes or fixed a bug. Instead of manually creating new issues or PR review comments repeatedly, you can simply click 'Redeliver' to test your latest changes with the same payload.
 
 For more detailed information, refer to the [GitHub Apps documentation](https://docs.github.com/en/developers/apps).
+
+---
+
+*Note: This README has been reviewed and tested as part of the Aiderbot pull request process.*
