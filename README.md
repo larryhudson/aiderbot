@@ -35,6 +35,8 @@ This automated workflow helps streamline the process of addressing issues and in
 
 To trigger Aiderbot's action, you need to mention "@Aiderbot" in the issue title or body, or in the issue comment or pull request review comment. This ensures that Aiderbot only responds when explicitly called upon.
 
+Note: The app currently logs pull request review events but does not process them further. This behavior is consistent with the implementation in main.py.
+
 ## Celery Task Queue
 
 The application uses Celery, a distributed task queue, to manage and execute code analysis and modification tasks asynchronously. This allows the app to handle multiple requests simultaneously and remain responsive while time-consuming tasks are processed in the background.
