@@ -10,7 +10,7 @@ This GitHub App automates the process of addressing issues and responding to pul
    - When a new issue is created
    - When a new issue comment is added
    - When a new pull request review comment is added
-   - When a pull request review is submitted (currently not handled, but logged)
+   - When a pull request review is submitted
 
 2. When an event is triggered, the app processes the event asynchronously using Celery tasks:
    - For new issues, it creates a pull request to resolve the issue
@@ -33,7 +33,7 @@ This GitHub App automates the process of addressing issues and responding to pul
 
 This automated workflow helps streamline the process of addressing issues and incorporating feedback, saving time for developers and maintainers.
 
-To trigger Aiderbot's action, you need to mention "@Aiderbot" in the issue title or body, or in the pull request review comment. This ensures that Aiderbot only responds when explicitly called upon.
+To trigger Aiderbot's action, you need to mention "@Aiderbot" in the issue title or body, or in the issue comment or pull request review comment. This ensures that Aiderbot only responds when explicitly called upon.
 
 ## Celery Task Queue
 
@@ -55,8 +55,8 @@ Before setting up the GitHub App, ensure you have the following:
 - GitHub account
 - Docker - e.g. [Docker Desktop](https://www.docker.com/products/docker-desktop/), [OrbStack for macOS](https://orbstack.dev/)
 - Node.js and NPM - for running the Smee webhook server in local development
-- Anthropic API token for Claude 3.5 model
-- macOS Sonoma 14.3.1 or later (Note: This has been tested on macOS, but should work on other operating systems)
+- Anthropic API token for Claude 3.5 Sonnet model
+- This has been tested on macOS, but should work on other operating systems
 
 ## Setup instructions
 
