@@ -56,3 +56,12 @@ def push_changes_to_repository(temp_dir, branch):
         logger.error(f"Failed to push changes to branch {branch}: {e}")
         logger.error(f"Command output: {e.output.decode() if e.output else 'No output'}")
         return False
+
+def get_current_commit_hash(repo_dir_path):
+    try:
+        current_commit = subprocess.run(['git', 'rev-parse', 'HEAD'], cwd=repo_dir_path, capture_output=True, text=True, check=True)
+        return current_commit.stdout.strip()
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to get current commit hash: {e}")
+        logger.error(f"Command output: {e.output.decode() if e.output else 'No output'}")
+        return None

@@ -30,20 +30,5 @@ COPY . .
 
 # Set environment variables
 ENV FLASK_ENV=production
-ENV CELERY_BROKER_URL=${CELERY_BROKER_URL}
-ENV CELERY_RESULT_BACKEND=${CELERY_RESULT_BACKEND}
+ENV REDIS_URL=${REDIS_URL}
 ENV ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-
-# Create a script to choose which process to run
-RUN echo '#!/bin/bash\n\
-if [ "$FLY_PROCESS_GROUP" == "app" ]; then\n\
-    exec gunicorn --bind 0.0.0.0:8585 main:app\n\
-elif [ "$FLY_PROCESS_GROUP" == "worker" ]; then\n\
-    exec celery -A celery_tasks worker --loglevel=info\n\
-else\n\
-    echo "Unknown process group: $FLY_PROCESS_GROUP"\n\
-    exit 1\n\
-fi' > /app/start.sh && chmod +x /app/start.sh
-
-# Set the entrypoint to our new script
-ENTRYPOINT ["/app/start.sh"]

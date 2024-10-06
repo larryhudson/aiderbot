@@ -17,35 +17,37 @@ logger = logging.getLogger(__name__)
 
 # GitHub App configuration
 GITHUB_APP_ID = os.getenv('GITHUB_APP_ID')
-GITHUB_PRIVATE_KEY_PATH = "/app/github-private-key.pem"
+GITHUB_PRIVATE_KEY_PATH = os.getenv("GITHUB_PRIVATE_KEY_PATH", "/app/github-private-key.pem")
 
 def get_github_token_for_installation(installation_id):
+    if not GITHUB_APP_ID:
+        raise ValueError("GITHUB_APP_ID environment variable not set")
+
     try:
         # Try to read the private key from the PEM file
-        with open(GITHUB_PRIVATE_KEY_PATH, 'r') as key_file:
-            signing_key = key_file.read()
+        with open(GITHUB_PRIVATE_KEY_PATH, 'r') as private_key_file:
+            private_key = private_key_file.read()
 
-        payload = {
+        jwt_payload = {
             'iat': int(time.time()),
             'exp': int(time.time()) + 600,  # JWT expiration time (10 minutes maximum)
             'iss': GITHUB_APP_ID
         }
 
         # Create JWT
-        jwt_token = jwt.encode(payload, signing_key, algorithm='RS256')
+        jwt_token = jwt.encode(jwt_payload, private_key, algorithm='RS256')
 
         # Get an installation access token
-        headers = {
-            'Authorization': f'Bearer {jwt_token}',
-            'Accept': 'application/vnd.github.v3+json'
-        }
-        response = requests.post(
+        token_response = requests.post(
             f'https://api.github.com/app/installations/{installation_id}/access_tokens',
-            headers=headers
+            headers={
+                'Authorization': f'Bearer {jwt_token}',
+                'Accept': 'application/vnd.github.v3+json'
+            },
         )
 
-        response.raise_for_status()
-        return response.json()['token']
+        token_response.raise_for_status()
+        return token_response.json()['token']
     except FileNotFoundError:
         logger.error(f"Private key file not found: {GITHUB_PRIVATE_KEY_PATH}")
         logger.info("The application will continue to run, but GitHub API calls will fail until the private key is provided.")
@@ -60,17 +62,22 @@ def get_github_token_for_installation(installation_id):
     
     return None
 
-def create_branch(token, owner, repo, branch_name, sha):
-    url = f"https://api.github.com/repos/{owner}/{repo}/git/refs"
-    headers = {
+def _get_headers_with_token(token, accept="application/vnd.github.v3+json"):
+    return {
         "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
+        "Accept": accept
     }
-    data = {
-        "ref": f"refs/heads/{branch_name}",
-        "sha": sha
-    }
-    response = requests.post(url, headers=headers, json=data)
+
+
+def create_branch(token, owner, repo, branch_name, sha):
+    response = requests.post(
+        f"https://api.github.com/repos/{owner}/{repo}/git/refs",
+        headers=_get_headers_with_token(token),
+        json={
+            "ref": f"refs/heads/{branch_name}",
+            "sha": sha
+        }
+    )
     if response.status_code == 201:
         return response.json()
     else:
@@ -78,18 +85,16 @@ def create_branch(token, owner, repo, branch_name, sha):
         return None
 
 def create_pull_request(token, owner, repo, title, body, head, base):
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    data = {
-        "title": title,
-        "body": body,
-        "head": head,
-        "base": base
-    }
-    response = requests.post(url, headers=headers, json=data)
+    response = requests.post(
+        f"https://api.github.com/repos/{owner}/{repo}/pulls",
+        headers=_get_headers_with_token(token),
+        json={
+            "title": title,
+            "body": body,
+            "head": head,
+            "base": base
+        }
+    )
     if response.status_code == 201:
         return response.json()
     else:
@@ -97,15 +102,13 @@ def create_pull_request(token, owner, repo, title, body, head, base):
         return None
 
 def create_issue_comment(token, owner, repo, issue_number, body):
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    data = {
-        "body": body
-    }
-    response = requests.post(url, headers=headers, json=data)
+    response = requests.post(
+        f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/comments",
+        headers=_get_headers_with_token(token),
+        json={
+            "body": body
+        }
+    )
     if response.status_code == 201:
         return response.json()
     else:
@@ -113,17 +116,15 @@ def create_issue_comment(token, owner, repo, issue_number, body):
         return None
 
 def create_issue_reaction(token, owner, repo, issue_number, reaction):
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json"
-    }
 
-    data = {
+    response = requests.post(
+        f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions",
+        headers=_get_headers_with_token(token),
+        json={
         "content": reaction
-    }
+        }
+    )
 
-    response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
         reaction_id = response.json()['id']
         return reaction_id
@@ -135,43 +136,38 @@ def create_issue_reaction(token, owner, repo, issue_number, reaction):
         return response.json()
 
 def delete_issue_reaction(token, owner, repo, issue_number, reaction_id):
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json"
-    }
 
-    response = requests.delete(url, headers=headers)
+    response = requests.delete(
+        f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}/reactions/{reaction_id}",
+        headers=_get_headers_with_token(token)
+    )
     if response.status_code == 204:
         return True
     else:
         logger.error(f"Failed to delete issue reaction: {response.text}")
         return False
 
-def create_pr_review_comment_reaction(token, owner, repo, comment_id, reaction):
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    data = {
+def create_pr_review_comment_reaction(token, owner, repo, pr_review_comment_id, reaction):
+    response = requests.post(
+        f"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{pr_review_comment_id}/reactions",
+        headers=_get_headers_with_token(token),
+        json={
         "content": reaction
-    }
-    response = requests.post(url, headers=headers, json=data)
+        }
+    )
+
     if response.status_code == 201:
         return response.json()
     else:
         logger.error(f"Failed to create PR review comment reaction: {response.text}")
         return None
 
-def delete_pr_review_comment_reaction(token, owner, repo, comment_id, reaction_id):
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{comment_id}/reactions/{reaction_id}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github+json"
-    }
+def delete_pr_review_comment_reaction(token, owner, repo, pr_review_comment_id, reaction_id):
 
-    response = requests.delete(url, headers=headers)
+    response = requests.delete(
+        f"https://api.github.com/repos/{owner}/{repo}/pulls/comments/{pr_review_comment_id}/reactions/{reaction_id}",
+        headers=_get_headers_with_token(token)
+    )
     if response.status_code == 204:
         return True
     else:
@@ -180,18 +176,17 @@ def delete_pr_review_comment_reaction(token, owner, repo, comment_id, reaction_i
 
 
 def get_pull_requests_for_issue(token, owner, repo, issue_number):
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    params = {
-        "state": "open",
-        "sort": "created",
-        "direction": "desc"
-    }
-    response = requests.get(url, headers=headers, params=params)
+    response = requests.get(
+        f"https://api.github.com/repos/{owner}/{repo}/pulls",
+        headers=_get_headers_with_token(token),
+        params={
+            "state": "open",
+            "sort": "created",
+            "direction": "desc"
+        }
+    )
     if response.status_code == 200:
+        # TODO: is there a better way to look up pull requests linked to an issue? use search api?
         prs = response.json()
         return [pr for pr in prs if f"#{issue_number}" in pr['title']]
     else:
@@ -199,12 +194,10 @@ def get_pull_requests_for_issue(token, owner, repo, issue_number):
         return []
 
 def get_issue(token, owner, repo, issue_number):
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    response = requests.get(url, headers=headers)
+    response = requests.get(
+        f"https://api.github.com/repos/{owner}/{repo}/issues/{issue_number}",
+        headers=_get_headers_with_token(token)
+    )
     if response.status_code == 200:
         return response.json()
     else:
@@ -212,12 +205,13 @@ def get_issue(token, owner, repo, issue_number):
         return None
 
 def get_pr_diff(token, owner, repo, pr_number):
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3.diff"
-    }
-    response = requests.get(url, headers=headers)
+    response = requests.get(
+        f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}",
+        headers=_get_headers_with_token(
+            token,
+            accept="application/vnd.github.v3.diff"
+        )
+    )
     if response.status_code == 200:
         return response.text
     else:
@@ -225,12 +219,10 @@ def get_pr_diff(token, owner, repo, pr_number):
         return None
 
 def get_pr_changed_files(token, owner, repo, pr_number):
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    response = requests.get(url, headers=headers)
+    response = requests.get(
+        f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/files",
+        headers=_get_headers_with_token(token),
+    )
     if response.status_code == 200:
         return [file['filename'] for file in response.json()]
     else:
@@ -238,15 +230,13 @@ def get_pr_changed_files(token, owner, repo, pr_number):
         return []
 
 def create_pr_comment(token, owner, repo, pr_number, body):
-    url = f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    data = {
-        "body": body
-    }
-    response = requests.post(url, headers=headers, json=data)
+    response = requests.post(
+        f"https://api.github.com/repos/{owner}/{repo}/issues/{pr_number}/comments",
+        headers=_get_headers_with_token(token),
+        json={
+            "body": body
+        }
+    )
     if response.status_code == 201:
         return response.json()
     else:
@@ -254,19 +244,15 @@ def create_pr_comment(token, owner, repo, pr_number, body):
         return None
 
 def reply_to_pr_review_comment(token, owner, repo, pr_number, pr_review_comment_id, body):
-    url = f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/comments"
+    response = requests.post(
+        f"https://api.github.com/repos/{owner}/{repo}/pulls/{pr_number}/comments",
+        headers=_get_headers_with_token(token),
+        json={
+            "body": body,
+            "in_reply_to": pr_review_comment_id
+        }
+    )
 
-    headers = {
-            "Authorization": f"token {token}",
-            "Accept": "application/vnd.github.v3+json"
-    }
-
-    data = {
-        "body": body,
-        "in_reply_to": pr_review_comment_id
-    }
-
-    response = requests.post(url, headers=headers, json=data)
     if response.status_code == 201:
         return response.json()
     else:
@@ -274,12 +260,11 @@ def reply_to_pr_review_comment(token, owner, repo, pr_number, pr_review_comment_
         return None
 
 def get_default_branch(token, owner, repo):
-    url = f"https://api.github.com/repos/{owner}/{repo}"
-    headers = {
-        "Authorization": f"token {token}",
-        "Accept": "application/vnd.github.v3+json"
-    }
-    response = requests.get(url, headers=headers)
+    response = requests.get(
+        f"https://api.github.com/repos/{owner}/{repo}",
+        headers=_get_headers_with_token(token)
+    )
+
     if response.status_code == 200:
         return response.json()['default_branch']
     else:

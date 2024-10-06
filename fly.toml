@@ -1,30 +1,30 @@
-app = "github-app-aider"
-primary_region = "syd"
+# fly.toml app configuration file generated for aiderbot on 2024-10-05T17:09:06+02:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'aiderbot'
+primary_region = 'cdg'
 
 [build]
-  dockerfile = "Dockerfile"
 
 [env]
-  FLASK_ENV = "production"
+  FLASK_ENV = 'production'
 
 [processes]
-  app = "gunicorn --bind 0.0.0.0:8585 main:app"
-  worker = "celery -A celery_tasks worker --loglevel=info"
+  app = 'gunicorn --bind 0.0.0.0:8585 aiderbot.main:app'
+  worker = 'celery -A aiderbot.celery_tasks worker --loglevel=info'
 
 [http_service]
   internal_port = 8585
   force_https = true
-  auto_stop_machines = true
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
-  processes = ["app"]
+  processes = ['app']
 
 [[vm]]
-  cpu_kind = "shared"
+  memory = '1gb'
+  cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 256
-  processes = ["app", "worker"]
-
-[mounts]
-  source = "github_private_key"
-  destination = "/app/github-private-key.pem"
+  processes = ['app', 'worker']
