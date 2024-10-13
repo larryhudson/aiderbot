@@ -17,16 +17,15 @@ logger = logging.getLogger(__name__)
 
 # GitHub App configuration
 GITHUB_APP_ID = os.getenv('GITHUB_APP_ID')
-GITHUB_PRIVATE_KEY_PATH = os.getenv("GITHUB_PRIVATE_KEY_PATH", "/app/github-private-key.pem")
+GITHUB_PRIVATE_KEY_CONTENTS = os.getenv('GITHUB_PRIVATE_KEY_CONTENTS')
 
 def get_github_token_for_installation(installation_id):
     if not GITHUB_APP_ID:
         raise ValueError("GITHUB_APP_ID environment variable not set")
+    if not GITHUB_PRIVATE_KEY_CONTENTS:
+        raise ValueError("GITHUB_PRIVATE_KEY_CONTENTS environment variable not set")
 
     try:
-        # Try to read the private key from the PEM file
-        with open(GITHUB_PRIVATE_KEY_PATH, 'r') as private_key_file:
-            private_key = private_key_file.read()
 
         jwt_payload = {
             'iat': int(time.time()),
@@ -35,7 +34,7 @@ def get_github_token_for_installation(installation_id):
         }
 
         # Create JWT
-        jwt_token = jwt.encode(jwt_payload, private_key, algorithm='RS256')
+        jwt_token = jwt.encode(jwt_payload, GITHUB_PRIVATE_KEY_CONTENTS, algorithm='RS256')
 
         # Get an installation access token
         token_response = requests.post(
@@ -48,8 +47,8 @@ def get_github_token_for_installation(installation_id):
 
         token_response.raise_for_status()
         return token_response.json()['token']
-    except FileNotFoundError:
-        logger.error(f"Private key file not found: {GITHUB_PRIVATE_KEY_PATH}")
+    except ValueError as e:
+        logger.error(f"Private key contents error: {str(e)}")
         logger.info("The application will continue to run, but GitHub API calls will fail until the private key is provided.")
     except jwt.PyJWTError as e:
         logger.error(f"JWT encoding failed: {str(e)}")

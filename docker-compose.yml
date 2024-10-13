@@ -12,8 +12,6 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - FLASK_ENV=production
-    volumes:
-      - ./persistent-data:/app/persistent-data
     ports:
       - "8585:8585"
     depends_on:
@@ -26,9 +24,9 @@ services:
     environment:
       - REDIS_URL=redis://redis:6379/0
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
-      - GITHUB_PRIVATE_KEY_PATH=${GITHUB_PRIVATE_KEY_PATH}
-    volumes:
-      - ./persistent-data:/app/persistent-data
+      # Uncomment this line if you are using an OpenAI model
+      # - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - GITHUB_PRIVATE_KEY_CONTENTS=${GITHUB_PRIVATE_KEY_CONTENTS}
     depends_on:
       - redis
       - web
