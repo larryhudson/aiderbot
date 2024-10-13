@@ -23,6 +23,7 @@ services:
     command: celery -A aiderbot.celery_tasks worker --loglevel=info
     environment:
       - REDIS_URL=redis://redis:6379/0
+      - AIDER_MODEL=${AIDER_MODEL:-claude-3-5-sonnet-20240620}
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
       # Uncomment this line if you are using an OpenAI model
       # - OPENAI_API_KEY=${OPENAI_API_KEY}

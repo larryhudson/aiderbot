@@ -44,6 +44,8 @@ Before setting up the GitHub App, ensure you have the following:
 - Anthropic API token for Claude 3.5 model
 - macOS Sonoma 14.3.1 or later (Note: This has been tested on macOS, but should work on other operating systems)
 
+
+
 ## Setup instructions
 
 Follow these steps to set up and run the GitHub App, and get the webhook server running on your local machine:
@@ -76,6 +78,9 @@ Follow these steps to set up and run the GitHub App, and get the webhook server 
      - `GITHUB_PRIVATE_KEY_CONTENTS`: Copy and paste the contents of the private key .pem file, replacing newlines with '\n'
      - `GITHUB_APP_USER_NAME`: The name of your GitHub app, followed by '[bot]' (e.g., 'MyCustomAiderbot[bot]')
      - `GIT_COMMIT_AUTHOR_NAME` and `GIT_COMMIT_AUTHOR_EMAIL`: your details which will be used in Aider's commits. You can find your public-facing GitHub email address in the [GitHub settings](https://github.com/settings/emails).
+     - `AIDER_MODEL`: (Optional) Set this to choose the AI model for Aider. Default is "claude-3-5-sonnet-20240620".
+     - `ANTHROPIC_API_KEY`: Your Anthropic API key if you are using an Anthropic model.
+     - `OPENAI_API_KEY`: Your OpenAI API key if you are using an OpenAI model.
      - `CONVENTIONS_FILE_PATH`: (Optional) Set this to the path of a Markdown file within your repository that contains project-specific coding conventions. If set, Aider will use these conventions when making coding changes.
 
 5. **Set up project-specific conventions (Optional):**

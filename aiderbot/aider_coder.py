@@ -20,8 +20,9 @@ logger = logging.getLogger(__name__)
 def do_coding_request(prompt, files_list, root_folder_path, conventions_file=None):
     logger.info("Starting coding request")
     logger.info(f"Files List: {files_list}")
-    
-    model = Model("claude-3-5-sonnet-20240620")
+
+    model_name = os.environ.get('AIDER_MODEL', 'claude-3-5-sonnet-20240620')
+    model = Model(model_name)
     full_file_paths = []
     for file in files_list:
         if isinstance(file, tuple):
@@ -30,12 +31,12 @@ def do_coding_request(prompt, files_list, root_folder_path, conventions_file=Non
             full_file_paths.append(os.path.join(root_folder_path, file))
     io = InputOutput(yes=True)
     git_repo = GitRepo(io, full_file_paths, root_folder_path, models=model.commit_message_models())
-    
+
     read_only_fnames = []
     if conventions_file:
         read_only_fnames.append(conventions_file)
         logger.info(f"Added conventions file to read-only files: {conventions_file}")
-    
+
     coder = Coder.create(main_model=model, fnames=full_file_paths, io=io, repo=git_repo, stream=False, suggest_shell_commands=False, read_only_fnames=read_only_fnames)
 
     logger.info("Running coder with prompt")

@@ -58,7 +58,7 @@ def get_github_token_for_installation(installation_id):
         logger.error("Unexpected response format from GitHub API")
     except Exception as e:
         logger.error(f"Unexpected error in get_github_token: {str(e)}")
-    
+
     return None
 
 def _get_headers_with_token(token, accept="application/vnd.github.v3+json"):
